@@ -1,8 +1,8 @@
 interface:
-  display_name: "iOS Pitfalls Diagnose"
-  short_description: "Diagnose real iOS pitfalls from logs and symptoms"
+  display_name: "iOS 踩坑诊断"
+  short_description: "根据日志和现象匹配真实 iOS 踩坑记录"
   brand_color: "#18181B"
-  default_prompt: "Use $ios-pitfalls-diagnose to match this iOS issue against known pitfalls before proposing fixes."
+  default_prompt: "使用 $ios-pitfalls-diagnose 先把这个 iOS 问题和已知踩坑记录做匹配，再给排查和修复建议。"
 
 policy:
   allow_implicit_invocation: true

@@ -20,7 +20,7 @@ https://liko0223.github.io/ios-pitfalls/
 Users can install the skill with:
 
 ```bash
-npx skills add Liko0223/ios-pitfalls@ios-pitfalls-diagnose
+npx skills add Liko0223/ios-pitfalls --skill ios-pitfalls-diagnose
 ```
 
 Update the owner/repo in the site if the final GitHub repository name changes.
@@ -28,8 +28,7 @@ Update the owner/repo in the site if the final GitHub repository name changes.
 ## Iterate
 
 1. Add or edit pitfall entries in `data/pitfalls.json`.
-2. Optionally update the Obsidian source note.
-3. Run:
+2. Run:
 
 ```bash
 npm run sync
@@ -46,4 +45,4 @@ Recommended first version:
 - Serve `site/` with GitHub Pages, Cloudflare Pages, or Vercel.
 - Keep the skill directory in the same repository for `npx skills add owner/repo@skill`.
 
-Before public release, review `references/source.md` and `data/pitfalls.json` for private project identifiers or details you do not want to publish.
+Before public release, review `data/pitfalls.json` for private identifiers or details you do not want to publish.

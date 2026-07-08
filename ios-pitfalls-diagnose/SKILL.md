@@ -1,52 +1,51 @@
 ---
 name: ios-pitfalls-diagnose
-description: Use when debugging iOS, Swift, SwiftUI, CloudKit, CKShare, WidgetKit, SwiftData, or Core Data issues where the user provides logs, screenshots, symptoms, build environment details, TestFlight/App Store behavior, device storage growth, widget behavior, navigation glitches, or crash reports. This skill checks a curated real pitfall library before proposing fixes.
+description: 用于诊断 iOS、Swift、SwiftUI、CloudKit、CKShare、WidgetKit、SwiftData、Core Data 相关问题。当用户提供日志、截图、现象描述、构建环境、TestFlight/App Store 表现、真机问题、存储异常、Widget 行为、导航/浮层异常或崩溃报告时，先匹配真实踩坑库，再给出排查与修复建议。
 ---
 
-# iOS Pitfalls Diagnose
+# iOS 踩坑诊断
 
-Use this skill to diagnose iOS / Swift issues against a curated set of real pitfalls.
+用这个 Skill 把 iOS / Swift 问题先和一组真实踩坑记录做匹配，再进入常规排查。
 
-## Required Workflow
+## 必走流程
 
-1. Read `references/pitfalls.json` first.
-2. Match the user's issue against `title`, `symptom`, `rootCause`, and `agentKeywords`.
-3. If one or more pitfalls match, cite their `id` before giving advice.
-4. Treat a match as a hypothesis, not proof. Ask for missing evidence before claiming root cause.
-5. Prefer checks from the matching pitfall before editing code.
-6. If no pitfall matches, say so and continue with ordinary iOS debugging.
+1. 先读取 `references/pitfalls.json`。
+2. 用用户的问题去匹配 `title`、`symptom`、`rootCause` 和 `agentKeywords`。
+3. 如果命中一个或多个坑，先标出对应的 `id`，再给建议。
+4. 把命中结果当成假设，不要当成已经证明的结论；缺证据时先补问。
+5. 动代码前，优先执行命中条目里的排查项。
+6. 如果没有命中，明确说明“暂时没有命中已知踩坑记录”，再继续常规 iOS 调试。
 
-## Evidence To Ask For
+## 需要补问的证据
 
-Ask only for the missing evidence relevant to the suspected pitfall:
+只问和当前怀疑点有关的缺失证据：
 
-- Build channel: Debug, TestFlight, App Store, simulator, or real device.
-- Exact logs or crash frames.
-- CloudKit environment: Development or Production.
-- Device role: owner or participant for CKShare.
-- Whether the issue is real-device-only.
-- Whether app storage, `cloudd`, WidgetKit, or UIKit/SwiftUI layer behavior is involved.
+- 构建渠道：Debug、TestFlight、App Store、模拟器还是真机。
+- 具体日志、错误码或崩溃堆栈。
+- CloudKit 环境：Development 还是 Production。
+- CKShare 里的设备/用户角色：owner 还是 participant。
+- 问题是否只在真机出现。
+- 是否涉及 app 存储、`cloudd`、WidgetKit、UIKit/SwiftUI 层级或窗口行为。
 
-## Output Style
+## 输出格式
 
-When a pitfall matches, answer in this shape:
+命中踩坑记录时，按这个结构回答：
 
 ```text
-Likely pitfall: <id> - <title>
-Why it matches: <short evidence-based reason>
-Check first:
+可能命中的坑：<id> - <title>
+为什么像：<基于现有证据的简短理由>
+先查这些：
 1. ...
 2. ...
-Fix direction:
+修复方向：
 1. ...
 2. ...
-Do not assume:
+不要直接假设：
 - ...
-Missing evidence:
+还缺的证据：
 - ...
 ```
 
-## References
+## 参考资料
 
-- `references/pitfalls.json`: structured pitfall index. Load this for most tasks.
-- `references/source.md`: full source note from the user's Obsidian vault. Load only when the structured index is insufficient or the user asks for the original write-up.
+- `references/pitfalls.json`：结构化、脱敏后的踩坑索引。每次诊断都先读这个。
