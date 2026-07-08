@@ -10,22 +10,30 @@
     {
       "id": "cloudkit",
       "name": "CloudKit / CKShare",
-      "summary": "CloudKit schema、CKAsset 拉取、共享权限与同步状态。"
+      "summary": "CloudKit schema、CKAsset 拉取、共享权限与同步状态。",
+      "nameEn": "CloudKit / CKShare",
+      "summaryEn": "CloudKit schema, CKAsset fetching, sharing permissions, and sync state."
     },
     {
       "id": "swiftui",
       "name": "SwiftUI / Navigation",
-      "summary": "SwiftUI 浮层、导航时序、ViewBuilder metadata 与根部 chrome。"
+      "summary": "SwiftUI 浮层、导航时序、ViewBuilder metadata 与根部 chrome。",
+      "nameEn": "SwiftUI / Navigation",
+      "summaryEn": "SwiftUI overlays, navigation timing, ViewBuilder metadata, and root chrome behavior."
     },
     {
       "id": "widgetkit",
       "name": "WidgetKit",
-      "summary": "Home Screen Widget 容器背景、透明玻璃效果与 descriptor 风险。"
+      "summary": "Home Screen Widget 容器背景、透明玻璃效果与 descriptor 风险。",
+      "nameEn": "WidgetKit",
+      "summaryEn": "Home Screen Widget host backgrounds, transparent glass effects, and descriptor risks."
     },
     {
       "id": "swiftdata",
       "name": "SwiftData / Core Data",
-      "summary": "外部存储、blob 文件丢失、NSException 与安全读取。"
+      "summary": "外部存储、blob 文件丢失、NSException 与安全读取。",
+      "nameEn": "SwiftData / Core Data",
+      "summaryEn": "External storage, missing blob files, NSException crashes, and safe reads."
     }
   ],
   "pitfalls": [
@@ -58,9 +66,29 @@
         "Record type cannot be found",
         "CloudKit Console",
         "Queryable index",
-        "NSDebugDescriptionErrorKey"
+        "NSDebugDescriptionErrorKey",
+        "Production schema not deployed",
+        "CloudKit schema deploy",
+        "TestFlight sync failed",
+        "App Store sync failed"
       ],
-      "avoid": "不要用 Debug / Development 环境成功来证明 TestFlight 或 App Store 的 CloudKit schema 已经可用。"
+      "avoid": "不要用 Debug / Development 环境成功来证明 TestFlight 或 App Store 的 CloudKit schema 已经可用。",
+      "titleEn": "CloudKit CKError 15: Production schema was not deployed",
+      "symptomEn": "In TestFlight or App Store builds, iCloud sync fails with CKErrorDomain error 15, while local Xcode Debug builds and earlier TestFlight builds work normally. The failure can affect all production users.",
+      "rootCauseEn": "CKError 15 usually maps to serverRejectedRequest. A common real cause is that the CloudKit Production environment does not contain the required record types or fields. Development can infer schema automatically, but Production requires a manual schema deployment.",
+      "checkEn": [
+        "Confirm the error is CKErrorDomain 15 / serverRejectedRequest, not an ordinary network failure.",
+        "Open CloudKit Console, switch to Production, and check whether the target record type exists.",
+        "Open the Deploy Schema Changes diff. If the record types or fields appear as Create operations, the Production schema has not been deployed.",
+        "Check whether recent code added fields such as content signatures or image versions without a new Production deploy."
+      ],
+      "fixEn": [
+        "Open icloud.developer.apple.com and select the correct container.",
+        "In the Development schema view, run Deploy Schema Changes to deploy record types, indexes, and security roles to Production.",
+        "After the deploy, ask users to relaunch the app or trigger sync again. This is usually a server-side configuration fix and does not require a new app release.",
+        "Add CloudKit schema deployment to the release checklist. Consider exporting schema with cktool and checking it in CI."
+      ],
+      "avoidEn": "Do not use a successful Debug / Development run as proof that the TestFlight or App Store CloudKit Production schema is ready."
     },
     {
       "id": "pit-02-swiftui-overlay-windowlevel",
@@ -94,9 +122,29 @@
         "UIHostingController",
         "clipShape",
         "mask",
-        "accessibilityViewIsModal"
+        "accessibilityViewIsModal",
+        "status bar not covered",
+        "navigation bar above overlay",
+        "full screen scrim",
+        "SwiftUI zIndex does not work"
       ],
-      "avoid": "不要指望 zIndex 能压过 UIKit 导航栏合成层或突破祖先裁剪；真正全屏浮层要跳到更高 UIWindow。"
+      "avoid": "不要指望 zIndex 能压过 UIKit 导航栏合成层或突破祖先裁剪；真正全屏浮层要跳到更高 UIWindow。",
+      "titleEn": "SwiftUI full-screen overlays cannot cover the status bar or navigation bar",
+      "symptomEn": "A custom bottom sheet and translucent scrim fail to cover the top status bar area when presented on a pushed NavigationStack child page. The navigation bar background can appear above the scrim, and moving the overlay to the root ZStack with a high zIndex still does not fix it.",
+      "rootCauseEn": "Two mechanisms combine inside the same UIWindow: ancestor clipping or masks can prevent the overlay from drawing outside its parent, and UIKit draws UINavigationBar chrome in a separate composition layer. SwiftUI zIndex only orders views inside one SwiftUI container and cannot escape clipping or beat UIKit chrome.",
+      "checkEn": [
+        "Confirm whether the issue appears only on pushed pages, rounded/clipped containers, or pages with special safe-area handling.",
+        "Inspect overlay ancestors for clipShape, mask, rounded containers, or safe-area exclusions.",
+        "If increasing zIndex still cannot cover the status bar or navigation bar background, the overlay is still trapped inside the same UIWindow."
+      ],
+      "fixEn": [
+        "Stop fighting hierarchy inside the same SwiftUI tree. Present the overlay in a separate transparent UIWindow with a higher windowLevel.",
+        "Create the UIWindow from the foregroundActive UIWindowScene and set windowLevel = .statusBar + 100.",
+        "Set the window and UIHostingController view to backgroundColor = .clear and isOpaque = false.",
+        "Keep a strong reference to the UIWindow in a controller. On dismissal, set window.isHidden = true and release the reference.",
+        "Set accessibilityViewIsModal = true so VoiceOver focus stays inside the overlay."
+      ],
+      "avoidEn": "Do not expect zIndex to beat UIKit navigation bar composition or escape ancestor clipping. A true full-screen overlay needs a higher UIWindow."
     },
     {
       "id": "pit-03-navigation-chrome-one-frame-late",
@@ -130,9 +178,29 @@
         "withTransaction",
         "disablesAnimations",
         "path.append",
-        "withAnimation navigation loop"
+        "withAnimation navigation loop",
+        "first frame flash",
+        "bottom white strip",
+        "root chrome late",
+        "NavigationStack timing"
       ],
-      "avoid": "不要在被 push 页面的 onAppear 才更新根部 chrome 状态；也不要用 withAnimation 包裹会影响导航事务的全局状态。"
+      "avoid": "不要在被 push 页面的 onAppear 才更新根部 chrome 状态；也不要用 withAnimation 包裹会影响导航事务的全局状态。",
+      "titleEn": "A white or gray strip flashes at the bottom when pushing a detail page",
+      "symptomEn": "When NavigationStack pushes a detail page, a white or gray strip flashes at the bottom before the detail content renders. The issue is intermittent and can reproduce across multiple detail pages.",
+      "rootCauseEn": "Root-level chrome such as a dock, tab bar, or rounded panel depends on a global in-detail flag, but that flag is only set in the pushed page onAppear, one frame after the first render. Wrapping the state change in withAnimation can also entangle the navigation transaction, causing appear/disappear loops, freezes, or a missing back button.",
+      "checkEn": [
+        "Observe whether the flash happens only on the first push frame and then the page looks normal.",
+        "Check whether root chrome depends on navigation state updated from the pushed page onAppear.",
+        "If adding withAnimation causes freezing or a missing back button, suspect navigation and animation transactions are being mixed."
+      ],
+      "fixEn": [
+        "Replace NavigationLink(value:) with a Button when necessary, and set the chrome state synchronously at the routing trigger before pushing.",
+        "Use Transaction(disablesAnimations: true) when setting chromeInDetail so the chrome expands instantly on entry.",
+        "Use DispatchQueue.main.async { path.append(route) } to push on the next run loop after the chrome has already expanded.",
+        "Drive panel height, corner radius, dock, and tab visibility from one derived value such as inDetail = isInDetail || chromeInDetail.",
+        "Use the spring slide-in only when returning home. Do not reuse it for entering detail pages."
+      ],
+      "avoidEn": "Do not wait for the pushed page onAppear to update root chrome. Do not wrap global navigation-affecting state in withAnimation unless you are sure it cannot affect the navigation transaction."
     },
     {
       "id": "pit-04-widget-transparent-background-private-descriptor",
@@ -167,9 +235,29 @@
         "setTransparent",
         "supportsVibrantContent",
         "ClearAndBlurredWidgets",
-        "WidgetExtension.debug.dylib"
+        "WidgetExtension.debug.dylib",
+        "transparent Home Screen widget",
+        "widget white card",
+        "wallpaper through widget",
+        "private WidgetKit descriptor"
       ],
-      "avoid": "不要把公开 SwiftUI 背景透明误认为能移除系统 Widget 宿主卡片；私有 descriptor patch 有审核和系统版本风险。"
+      "avoid": "不要把公开 SwiftUI 背景透明误认为能移除系统 Widget 宿主卡片；私有 descriptor patch 有审核和系统版本风险。",
+      "titleEn": "Transparent glass Home Screen Widgets are only approximate with public APIs",
+      "symptomEn": "A Home Screen Widget is intended to show the wallpaper through a glass-like background. Even after using Color.clear, containerBackground(for: .widget), glassEffect, or ultraThinMaterial in SwiftUI, the real Home Screen still shows a white widget card.",
+      "rootCauseEn": "The Home Screen Widget host background is decided by WidgetKit / SpringBoard through the widget descriptor, not by ordinary SwiftUI background views. Public APIs can control the content tree and containerBackground, but cannot mark the descriptor as transparent or background removable.",
+      "checkEn": [
+        "Confirm the widget can be added on Simulator or device but still appears as a white card on the Home Screen.",
+        "Confirm SwiftUI background, material, or opacity changes only affect the inside of the card and do not reveal the wallpaper.",
+        "If descriptor patching makes the widget disappear from the add list, the WidgetKit descriptor path was probably patched incorrectly."
+      ],
+      "fixEn": [
+        "With public APIs, accept an approximate material look and the limitation that the Home Screen host card cannot be fully removed.",
+        "If private API risk is explicitly accepted, study ClearAndBlurredWidgets-style descriptor hook approaches inside the Widget extension.",
+        "Patch CHSWidgetDescriptor fields such as backgroundRemovable, transparent, supportsVibrantContent, or preferredBackgroundStyle.",
+        "Still provide a Color.clear containerBackground from SwiftUI so the content tree does not draw its own background.",
+        "Check Debug and Release separately. Xcode 17 Debug may place widget code in WidgetExtension.debug.dylib."
+      ],
+      "avoidEn": "Do not mistake a transparent SwiftUI background for removal of the system widget host card. Private descriptor patching carries review and OS-version risk."
     },
     {
       "id": "pit-05-swiftui-viewbuilder-metadata-recursion",
@@ -204,9 +292,29 @@
         "debugCard.getter",
         "independent struct View",
         "真机闪退",
-        "#if DEBUG"
+        "#if DEBUG",
+        "real device SwiftUI crash",
+        "ViewBuilder stack overflow",
+        "huge SwiftUI body"
       ],
-      "avoid": "不要把巨型 ViewBuilder helper 当作复杂度边界；降低 SwiftUI metadata 压力必须抽成独立 View 类型。"
+      "avoid": "不要把巨型 ViewBuilder helper 当作复杂度边界；降低 SwiftUI metadata 压力必须抽成独立 View 类型。",
+      "titleEn": "Huge SwiftUI @ViewBuilder or computed views can cause metadata recursion on device",
+      "symptomEn": "Tapping into a settings-style page crashes on a real device with EXC_BAD_ACCESS or Thread stack size exceeded due to excessive recursion. The stack repeatedly shows getters such as a debug card, settings card, ViewBuilder helper, and the parent body getter. The simulator may not reproduce it.",
+      "rootCauseEn": "On device, SwiftUI can recurse too deeply while instantiating huge body generic types and ViewBuilder metadata. @ViewBuilder functions, some View computed properties, and generic helpers all remain part of the parent View.body type graph; moving code into another helper does not create a real type boundary.",
+      "checkEn": [
+        "Confirm the crash happens on a real device and may not reproduce on the simulator.",
+        "Look for Thread stack size exceeded due to excessive recursion in the crash report.",
+        "Check whether the stack repeatedly shows a large computed view getter, ViewBuilder, or generic helper.",
+        "Inspect whether the page is built from many cards, sections, buttons, toggles, sheets, alerts, or large #if DEBUG blocks."
+      ],
+      "fixEn": [
+        "Do not merely move the large block into another @ViewBuilder helper.",
+        "Extract the large block into an independent struct conforming to View, such as DebugSettingsCard(showsPaywall: $showsPaywall).",
+        "Use the independent View type as a real metadata and type-graph boundary.",
+        "For complex Settings, Profile, or Dashboard pages, split blocks larger than one screen into independent View types.",
+        "Validate the fix with a real-device build and install. A simulator pass does not prove this pitfall is gone."
+      ],
+      "avoidEn": "Do not treat a huge ViewBuilder helper as a complexity boundary. To reduce SwiftUI metadata pressure, extract independent View types."
     },
     {
       "id": "pit-06-cloudkit-desiredkeys-asset-cache-growth",
@@ -243,9 +351,30 @@
         "mods=0",
         "database.records(for:)",
         "change token",
-        "desiredKeys []"
+        "desiredKeys []",
+        "CloudKit cache growth",
+        "desiredKeys nil assets",
+        "Library/Caches/CloudKit grows",
+        "cloudd downloaded asset"
       ],
-      "avoid": "不要在 zone 里有大 asset 时用 desiredKeys: nil 做列表、探测或全量比对；应用层跳过不等于系统缓存没下载。"
+      "avoid": "不要在 zone 里有大 asset 时用 desiredKeys: nil 做列表、探测或全量比对；应用层跳过不等于系统缓存没下载。",
+      "titleEn": "CloudKit desiredKeys: nil full fetch can make local cache grow explosively",
+      "symptomEn": "After enabling iCloud sync, the app keeps growing in storage while doing nothing, for example from 2 GB to 8 GB, 18 GB, or 60 GB+. Shared album devices can be especially affected. Once startup cleanup of Library/Caches/CloudKit is removed, the growth becomes obvious.",
+      "rootCauseEn": "The sync path calls database.recordZoneChanges(since:desiredKeys:) with desiredKeys set to nil, so CloudKit downloads large CKAsset fields for every record in the zone into Library/Caches/CloudKit. Even if the app later decides the content signature is unchanged and discards the record, the bytes have already landed in the system cache. A full-zone fetch just to read a root or probe record is the same class of bug.",
+      "checkEn": [
+        "Do not rely only on app logs. If logs show mods=0 while storage still grows, inspect cloudd logs.",
+        "Capture device syslog and filter for cloudd / Downloaded asset to confirm whether the same assets are repeatedly downloaded.",
+        "Check whether sync runs on every foreground entry and whether desiredKeys is nil.",
+        "Remember macOS does not provide the Linux timeout command by default; timeout idevicesyslog may fail silently."
+      ],
+      "fixEn": [
+        "Change the main fetch to a two-phase strategy: first fetch only metadata and content signatures with a desiredKeys whitelist that excludes CKAsset fields.",
+        "In phase two, call database.records(for:) by record ID only for records whose content signature says the cloud version must be adopted.",
+        "Reuse the exact pure function used by import logic to decide whether a full record is needed, avoiding both over-fetching and missed updates.",
+        "For root/probe records, pass desiredKeys as an empty array [] when only recordID and system fields are needed.",
+        "Before deleting any startup cache cleanup workaround, verify the real asset-fetch prevention is in place."
+      ],
+      "avoidEn": "Do not use desiredKeys: nil for listing, probing, or full comparison when a zone contains large assets. Skipping at the app layer does not mean CloudKit avoided downloading the bytes."
     },
     {
       "id": "pit-07-ckshare-permissionfailure-tombstone-reset",
@@ -281,9 +410,28 @@
         "zoneNotFound",
         "unknownItem",
         "照片复活",
-        "共享已失效"
+        "共享已失效",
+        "deleted photos reappear",
+        "CKShare participant failure",
+        "share invalidation",
+        "delete tombstone cleared"
       ],
-      "avoid": "不要把 CKError permissionFailure 一律当作共享永久失效；也不要在重置同步身份时清掉删除墓碑。"
+      "avoid": "不要把 CKError permissionFailure 一律当作共享永久失效；也不要在重置同步身份时清掉删除墓碑。",
+      "titleEn": "CKShare sync failure and deleted photos coming back",
+      "symptomEn": "In a shared album, the participant side repeatedly reports that sharing is invalid or needs a new invitation. At the same time, photos deleted on one device later reappear, especially after accepting an invitation or reconnecting.",
+      "rootCauseEn": "Two bugs combine: permissionFailure (CKError code 10) can be transient while the owner has not yet upgraded the participant to readWrite, but it is incorrectly treated as permanent share invalidation. During invite acceptance, resetLocalSyncIdentity() also clears pending-delete or deleted-day tombstones. In an append-only shared album model, clearing tombstones lets cloud records that were never physically deleted import again, reviving deleted photos.",
+      "checkEn": [
+        "Debug owner and participant roles separately. If only the participant fails, inspect shared-zone permissions and the accept/reset flow first.",
+        "If deleted content comes back and the sync model is append-only, check whether tombstones are cleared during reset, accept, or cache cleanup.",
+        "Check whether permissionFailure is included in the set of errors treated as permanent share invalidation."
+      ],
+      "fixEn": [
+        "Remove permissionFailure from the permanent share invalidation error set. Keep signals closer to permanent invalidation, such as unknownItem and zoneNotFound.",
+        "Make resetLocalSyncIdentity() clear only sync identity state such as owner flags, known sets, change tokens, dirty state, and adopted LWW state.",
+        "Ensure resetLocalSyncIdentity() preserves pending-delete and deleted-day tombstones. Deletion is user intent, not device sync identity.",
+        "Remove participant reset buttons that do not cover real recovery cases. Replace them with accurate guidance asking the album owner to invite again."
+      ],
+      "avoidEn": "Do not treat every CKError permissionFailure as permanent share invalidation. Do not clear deletion tombstones when resetting sync identity."
     },
     {
       "id": "pit-08-swiftdata-externalstorage-nsexception",
@@ -322,9 +470,32 @@
         "Objective-C @try/@catch",
         "bridging header",
         "safeXxxData",
-        "nonisolated(unsafe)"
+        "nonisolated(unsafe)",
+        "externalStorage crash",
+        "missing Core Data blob",
+        "uncaught NSException",
+        "SwiftData photo blob crash"
       ],
-      "avoid": "不要以为 Swift 的 try? 能拦住外部存储文件丢失引发的 NSException；所有 externalStorage blob 读取都要经过安全访问器。"
+      "avoid": "不要以为 Swift 的 try? 能拦住外部存储文件丢失引发的 NSException；所有 externalStorage blob 读取都要经过安全访问器。",
+      "titleEn": "Missing SwiftData/Core Data external storage files can cause an uncaught NSException abort",
+      "symptomEn": "The app crashes on some devices with a stack containing -[_PFExternalReferenceData _retrieveExternalData], -[NSData _bridgingCopy:length:], objc_exception_throw, and abort(SIGABRT). The trigger is UI rendering that reads a specific photo blob, such as thumbnailData, after the device has experienced storage pressure or Jetsam events.",
+      "rootCauseEn": "A SwiftData image field uses @Attribute(.externalStorage), so Core Data stores large blobs as separate files. If an external file is lost because of full disk, Jetsam, or interrupted writes, the main store keeps a dangling reference. Reading the property makes Core Data throw an Objective-C NSException and abort. This is not a Swift Error, so do/catch, try?, and NSSetUncaughtExceptionHandler cannot catch it.",
+      "checkEn": [
+        "Check whether the crash stack contains _PFExternalReferenceData _retrieveExternalData, _bridgingCopy, and objc_exception_throw.",
+        "Confirm whether tapping or rendering one specific record always crashes while other records work. That usually points to one broken external blob.",
+        "Pull the .ips crash report with idevicecrashreport and locate the exact property being read, such as PhotoAsset.thumbnailData.getter.",
+        "Check whether computed properties or cache keys repeatedly read the full blob just to calculate signatures."
+      ],
+      "fixEn": [
+        "Add an Objective-C bridge that wraps blob reads in @try/@catch and exposes the helper to Swift with NS_SWIFT_NAME(catching(_:)).",
+        "Add the bridging header only to the app target. Widget extensions should not import it unless explicitly designed for that target.",
+        "Add safeXxxData accessors on the model. Read blobs through the Objective-C bridge and return nil instead of aborting when the file is missing.",
+        "Route all UI and rendering paths through safeXxxData. Show a placeholder when nil is returned so the app remains usable.",
+        "Do not read blobs in high-frequency identity or cache-key calculations. Use content version and state flags instead."
+      ],
+      "avoidEn": "Do not assume Swift try? can catch NSException crashes caused by missing external storage files. Every externalStorage blob read on a user-facing path needs a safe accessor."
     }
-  ]
+  ],
+  "titleEn": "iOS Development Pitfalls",
+  "purposeEn": "A sanitized bilingual index of real iOS / Swift pitfalls for agents to match symptoms, logs, root causes, checks, and fixes before proposing changes."
 }

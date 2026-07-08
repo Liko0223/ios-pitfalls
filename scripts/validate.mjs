@@ -30,8 +30,8 @@ if (JSON.stringify(data) !== JSON.stringify(embeddedData)) {
 
 const categoryIds = new Set(data.categories.map((category) => category.id));
 const pitfallIds = new Set();
-const requiredStringFields = ["id", "category", "severity", "title", "symptom", "rootCause", "avoid"];
-const requiredArrayFields = ["check", "fix", "agentKeywords"];
+const requiredStringFields = ["id", "category", "severity", "title", "titleEn", "symptom", "symptomEn", "rootCause", "rootCauseEn", "avoid", "avoidEn"];
+const requiredArrayFields = ["check", "checkEn", "fix", "fixEn", "agentKeywords"];
 
 for (const pitfall of data.pitfalls) {
   for (const field of requiredStringFields) {
@@ -43,6 +43,12 @@ for (const pitfall of data.pitfalls) {
     if (!Array.isArray(pitfall[field]) || pitfall[field].length === 0) {
       fail(`${pitfall.id} missing non-empty array field: ${field}`);
     }
+  }
+  if (pitfall.check.length !== pitfall.checkEn.length) {
+    fail(`${pitfall.id} check and checkEn length mismatch`);
+  }
+  if (pitfall.fix.length !== pitfall.fixEn.length) {
+    fail(`${pitfall.id} fix and fixEn length mismatch`);
   }
   if (!categoryIds.has(pitfall.category)) {
     fail(`${pitfall.id} references unknown category: ${pitfall.category}`);
