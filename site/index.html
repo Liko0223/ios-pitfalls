@@ -1,0 +1,1419 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#ffffff">
+  <title>iOS 踩坑指南</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --background: #ffffff;
+      --foreground: #09090b;
+      --muted: #71717a;
+      --muted-foreground: #52525b;
+      --card: #ffffff;
+      --border: #e4e4e7;
+      --border-subtle: #f4f4f5;
+      --accent: #f4f4f5;
+      --accent-foreground: #18181b;
+      --primary: #18181b;
+      --primary-foreground: #fafafa;
+      --destructive: #dc2626;
+      --warning: #ca8a04;
+      --ring: #18181b;
+      --radius: 8px;
+      --space-1: 4px;
+      --space-2: 8px;
+      --space-3: 12px;
+      --space-4: 16px;
+      --space-5: 24px;
+      --space-6: 32px;
+      --space-7: 48px;
+      --space-8: 64px;
+      --font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--foreground);
+      background: var(--background);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.5;
+      font-kerning: normal;
+      -webkit-font-smoothing: antialiased;
+      text-rendering: optimizeLegibility;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      background: none;
+    }
+
+    a {
+      color: inherit;
+    }
+
+    .skip-link {
+      position: fixed;
+      left: var(--space-4);
+      top: var(--space-4);
+      z-index: 10;
+      transform: translateY(-150%);
+      background: var(--primary);
+      color: var(--primary-foreground);
+      padding: var(--space-2) var(--space-3);
+      border-radius: var(--radius);
+      font-size: 0.875rem;
+    }
+
+    .skip-link:focus {
+      transform: translateY(0);
+    }
+
+    .shell {
+      width: min(1440px, 100%);
+      margin: 0 auto;
+      padding: 0 max(var(--space-4), env(safe-area-inset-right)) var(--space-8) max(var(--space-4), env(safe-area-inset-left));
+    }
+
+    .deck-top {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      width: 100%;
+      margin: 0 auto;
+      padding: 0 max(var(--space-4), env(safe-area-inset-right)) 0 max(var(--space-4), env(safe-area-inset-left));
+      display: grid;
+      height: 56px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      align-items: center;
+      gap: var(--space-4);
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.92);
+      color: var(--muted-foreground);
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 36px;
+      color: var(--foreground);
+      font-size: 0.94rem;
+      font-weight: 600;
+      text-decoration: none;
+    }
+
+    .brand::before {
+      content: none;
+    }
+
+    .brand img {
+      width: 22px;
+      height: 22px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      object-fit: cover;
+    }
+
+    .deck-topic {
+      min-width: 0;
+      color: var(--muted);
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-align: center;
+    }
+
+    .deck-topic span {
+      display: none;
+    }
+
+    .deck-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--background);
+      color: var(--muted-foreground);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+
+    .hero {
+      display: grid;
+      gap: var(--space-5);
+      padding: var(--space-7) 0 var(--space-6);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .hero-copy {
+      display: grid;
+      gap: var(--space-4);
+      min-width: 0;
+    }
+
+    .eyebrow {
+      width: fit-content;
+      color: var(--muted);
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      max-width: 760px;
+      font-size: clamp(2.35rem, 4.5vw, 4.2rem);
+      line-height: 1;
+      letter-spacing: 0;
+      font-weight: 800;
+    }
+
+    .hero p {
+      max-width: 76ch;
+      color: var(--muted-foreground);
+      font-size: 1rem;
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-3);
+      align-items: center;
+    }
+
+    .install-command {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      width: fit-content;
+      max-width: 100%;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--accent);
+      padding: var(--space-2);
+    }
+
+    .install-command code {
+      overflow-wrap: anywhere;
+      padding: 0 var(--space-2);
+      color: var(--foreground);
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+    }
+
+    .btn {
+      display: inline-flex;
+      min-height: 44px;
+      align-items: center;
+      justify-content: center;
+      gap: var(--space-2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--background);
+      color: var(--foreground);
+      padding: 0 var(--space-3);
+      font-size: 0.875rem;
+      font-weight: 500;
+      text-decoration: none;
+      transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
+    }
+
+    .btn.primary {
+      border-color: transparent;
+      background: var(--primary);
+      color: var(--primary-foreground);
+    }
+
+    .btn:hover {
+      background: var(--accent);
+    }
+
+    .btn:focus-visible,
+    .chip:focus-visible,
+    .icon-btn:focus-visible,
+    .search input:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 3px;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: var(--space-3);
+      width: min(100%, 560px);
+    }
+
+    .stat {
+      border-top: 1px solid var(--border);
+      padding-top: var(--space-3);
+    }
+
+    .stat b {
+      display: block;
+      font-size: 1.65rem;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .stat span {
+      color: var(--muted);
+      font-size: 0.8125rem;
+      font-family: var(--font-mono);
+    }
+
+    .toolbar {
+      position: sticky;
+      top: 56px;
+      z-index: 5;
+      display: grid;
+      gap: var(--space-3);
+      padding: var(--space-4) 0;
+      border-bottom: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+    }
+
+    .search {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: var(--space-2);
+      min-height: 40px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--background);
+      padding: 0 var(--space-3);
+    }
+
+    .search svg {
+      color: var(--muted);
+      flex: none;
+    }
+
+    .search input {
+      width: 100%;
+      min-width: 0;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--foreground);
+      font-size: 0.875rem;
+    }
+
+    .search input::placeholder {
+      color: var(--muted);
+    }
+
+    .icon-btn {
+      display: inline-grid;
+      width: 32px;
+      height: 32px;
+      place-items: center;
+      border-radius: 6px;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .icon-btn:hover {
+      background: var(--accent);
+      color: var(--foreground);
+    }
+
+    .filters {
+      display: flex;
+      gap: var(--space-2);
+      overflow-x: auto;
+      padding-bottom: 2px;
+      scrollbar-width: thin;
+    }
+
+    .chip {
+      flex: 0 0 auto;
+      min-height: 32px;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      background: var(--background);
+      color: var(--muted-foreground);
+      padding: 0 var(--space-3);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      transition: background-color 160ms ease, color 160ms ease, border-color 160ms ease;
+    }
+
+    .chip[aria-pressed="true"] {
+      border-color: var(--foreground);
+      background: var(--foreground);
+      color: var(--primary-foreground);
+    }
+
+    .main-grid {
+      display: grid;
+      gap: var(--space-6);
+      padding-top: var(--space-6);
+    }
+
+    .side {
+      display: none;
+    }
+
+    .side-inner {
+      position: sticky;
+      top: 136px;
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .agent-box {
+      border-bottom: 1px solid var(--border);
+      padding-bottom: var(--space-4);
+    }
+
+    .agent-box h2 {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .agent-box p {
+      margin-top: var(--space-2);
+      color: var(--muted-foreground);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+    }
+
+    .agent-box code {
+      color: var(--foreground);
+      font-family: var(--font-mono);
+      font-size: 0.86rem;
+    }
+
+    .category-list {
+      display: grid;
+      gap: var(--space-2);
+    }
+
+    .category-link {
+      display: flex;
+      justify-content: space-between;
+      gap: var(--space-3);
+      border-radius: 6px;
+      padding: 6px var(--space-2);
+      color: var(--muted-foreground);
+      font-size: 0.875rem;
+      text-decoration: none;
+      font-weight: 500;
+    }
+
+    .category-link:hover {
+      background: var(--accent);
+      color: var(--foreground);
+    }
+
+    .category-link strong {
+      color: inherit;
+      font-weight: inherit;
+    }
+
+    .content {
+      min-width: 0;
+    }
+
+    .section-head {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: var(--space-4);
+      margin-bottom: var(--space-5);
+      border-bottom: 1px solid var(--border);
+      padding-bottom: var(--space-4);
+    }
+
+    .section-head h2 {
+      font-size: 1.875rem;
+      line-height: 1.2;
+      font-weight: 700;
+    }
+
+    .section-head p {
+      color: var(--muted);
+      font-size: 0.8125rem;
+      text-align: right;
+      font-family: var(--font-mono);
+    }
+
+    .pitfall-list {
+      display: grid;
+      gap: var(--space-4);
+    }
+
+    .pitfall {
+      position: relative;
+      display: grid;
+      gap: var(--space-3);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--card);
+      padding: var(--space-5);
+      container-type: inline-size;
+    }
+
+    .pitfall:hover {
+      border-color: #d4d4d8;
+    }
+
+    .pitfall-header {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .meta-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      align-items: center;
+    }
+
+    .badge {
+      display: inline-flex;
+      min-height: 24px;
+      align-items: center;
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 0 8px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 500;
+      font-family: var(--font-mono);
+    }
+
+    .badge.high {
+      border-color: #fecaca;
+      background: #fef2f2;
+      color: #991b1b;
+    }
+
+    .badge.medium {
+      border-color: #fde68a;
+      background: #fffbeb;
+      color: #92400e;
+    }
+
+    .pitfall h3 {
+      font-size: 1.125rem;
+      line-height: 1.35;
+      letter-spacing: 0;
+      font-weight: 600;
+    }
+
+    .summary-grid {
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .field {
+      display: grid;
+      gap: var(--space-1);
+      min-width: 0;
+    }
+
+    .field dt {
+      color: var(--muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      font-family: var(--font-mono);
+    }
+
+    .field dd {
+      margin: 0;
+      color: var(--foreground);
+      font-size: 0.875rem;
+      line-height: 1.65;
+    }
+
+    .details {
+      display: grid;
+      gap: var(--space-3);
+      border-top: 1px solid var(--border);
+      padding-top: var(--space-4);
+    }
+
+    details {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: var(--space-3);
+    }
+
+    summary {
+      cursor: pointer;
+      color: var(--foreground);
+      font-size: 0.875rem;
+      font-weight: 500;
+    }
+
+    summary:focus-visible {
+      outline: 2px solid var(--ring);
+      outline-offset: 4px;
+      border-radius: var(--radius);
+    }
+
+    ul {
+      margin: var(--space-3) 0 0;
+      padding-left: 1.15rem;
+    }
+
+    li + li {
+      margin-top: var(--space-2);
+    }
+
+    li {
+      color: var(--muted-foreground);
+      font-size: 0.875rem;
+      line-height: 1.6;
+    }
+
+    .keywords {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+    }
+
+    .keyword {
+      border-radius: 999px;
+      background: var(--accent);
+      color: var(--muted-foreground);
+      padding: var(--space-1) var(--space-3);
+      font-size: 0.75rem;
+      font-weight: 500;
+      font-family: var(--font-mono);
+    }
+
+    .pitfall-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-2);
+      align-items: center;
+      justify-content: space-between;
+      border-top: 1px solid var(--border);
+      padding-top: var(--space-4);
+    }
+
+    .copy-btn {
+      min-height: 34px;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--background);
+      color: var(--foreground);
+      padding: 0 var(--space-3);
+      font-size: 0.8125rem;
+      font-weight: 500;
+    }
+
+    .copy-btn:hover {
+      background: var(--accent);
+    }
+
+    .avoid {
+      color: var(--muted-foreground);
+      font-size: 0.8125rem;
+    }
+
+    .empty {
+      display: none;
+      border: 1px dashed var(--border);
+      border-radius: var(--radius);
+      padding: var(--space-6);
+      color: var(--muted);
+      text-align: center;
+    }
+
+    .toast {
+      position: fixed;
+      right: max(var(--space-4), env(safe-area-inset-right));
+      bottom: max(var(--space-4), env(safe-area-inset-bottom));
+      z-index: 8;
+      transform: translateY(22px);
+      opacity: 0;
+      border-radius: var(--radius);
+      background: var(--primary);
+      color: var(--primary-foreground);
+      padding: var(--space-3) var(--space-4);
+      font-size: 0.875rem;
+      font-weight: 500;
+      pointer-events: none;
+      transition: opacity 180ms ease, transform 180ms ease;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    @container (min-width: 680px) {
+      .summary-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .details {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (min-width: 760px) {
+      .hero {
+        grid-template-columns: minmax(0, 1fr);
+      }
+
+      .toolbar {
+        grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.4fr);
+        align-items: center;
+      }
+    }
+
+    @media (min-width: 1080px) {
+      .deck-top,
+      .shell {
+        padding-inline: var(--space-6);
+      }
+
+      .main-grid {
+        grid-template-columns: 248px minmax(0, 1fr);
+        align-items: start;
+      }
+
+      .side {
+        display: block;
+        border-right: 1px solid var(--border);
+        padding-right: var(--space-5);
+      }
+
+      .toolbar {
+        padding-inline: var(--space-4);
+      }
+    }
+
+    @media (min-width: 1180px) {
+      .pitfall-list {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        align-items: start;
+      }
+    }
+
+    @media (min-width: 1500px) {
+      .main-grid {
+        grid-template-columns: 260px minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 760px) {
+      .deck-top {
+        height: auto;
+        grid-template-columns: 1fr auto;
+        padding-block: var(--space-3);
+      }
+
+      .deck-topic {
+        display: none;
+      }
+
+      .deck-pill {
+        width: fit-content;
+      }
+
+      .hero {
+        padding-top: var(--space-6);
+      }
+
+      .stats {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        scroll-behavior: auto !important;
+        transition-duration: 0.001ms !important;
+        animation-duration: 0.001ms !important;
+        animation-iteration-count: 1 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#main">跳到内容</a>
+  <div class="deck-top" aria-label="页面信息">
+    <div class="brand">
+      <img src="/Users/lilinke/Desktop/likosmeme%20/avagreen.png" alt="">
+      <span>iOS Pitfalls</span>
+    </div>
+    <div class="deck-topic">Technical notes for beginners and agents</div>
+    <div class="deck-pill">JSON v1</div>
+  </div>
+  <div class="shell">
+    <header class="hero">
+      <section class="hero-copy" aria-labelledby="page-title">
+        <div class="eyebrow">Documentation</div>
+        <h1 id="page-title">iOS 踩坑指南</h1>
+        <p>把常见问题拆成症状、根因、检查路径和修复动作。新手先照着排，Agent 直接读结构化条目，不再从一堆聊天记录里翻线索。</p>
+        <div class="stats" aria-label="知识库概览">
+          <div class="stat"><b id="stat-count">0</b><span>条坑点</span></div>
+          <div class="stat"><b id="stat-categories">0</b><span>个大类</span></div>
+          <div class="stat"><b id="stat-high">0</b><span>高风险</span></div>
+        </div>
+        <div class="hero-actions">
+          <a class="btn primary" href="#main">开始排查</a>
+          <button class="btn" id="copy-all" type="button">复制 Agent 摘要</button>
+        </div>
+        <div class="install-command" aria-label="Skill 安装命令">
+          <code id="install-command">npx skills add Liko0223/ios-pitfalls@ios-pitfalls-diagnose</code>
+          <button class="btn" id="copy-install" type="button">复制安装命令</button>
+        </div>
+      </section>
+    </header>
+
+    <nav class="toolbar" aria-label="筛选">
+      <label class="search">
+        <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+          <path d="m21 21-4.35-4.35M10.8 18.1a7.3 7.3 0 1 1 0-14.6 7.3 7.3 0 0 1 0 14.6Z" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        </svg>
+        <input id="search" type="search" placeholder="搜 iCloud、证书、StoreKit、@MainActor..." autocomplete="off">
+        <button class="icon-btn" id="clear-search" type="button" aria-label="清空搜索">
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M6 6l12 12M18 6 6 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
+      </label>
+      <div class="filters" id="filters" role="group" aria-label="分类"></div>
+    </nav>
+
+    <main id="main" class="main-grid">
+      <aside class="side" aria-label="目录">
+        <div class="side-inner">
+          <section class="agent-box">
+            <h2>Agent 入口</h2>
+            <p>结构化源文件在同目录的 pitfalls.json。推荐先按 category 和 agentKeywords 检索，再读 check 与 fix。</p>
+          </section>
+          <nav class="category-list" id="category-list" aria-label="分类目录"></nav>
+        </div>
+      </aside>
+
+      <section class="content" aria-live="polite">
+        <div class="section-head">
+          <h2 id="result-title">全部坑点</h2>
+          <p id="result-count">0 条</p>
+        </div>
+        <div class="pitfall-list" id="pitfall-list"></div>
+        <div class="empty" id="empty">没有匹配项。换个关键词，比如 iCloud、profile、Widget 或 migration。</div>
+      </section>
+    </main>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite">已复制</div>
+
+  <script id="pitfall-data" type="application/json">
+{
+  "version": "2026-07-07",
+  "title": "iOS 开发踩坑记录",
+  "purpose": "从 Obsidian 源文档抽取真实 iOS / Swift 踩坑记录，供 Agent 按症状、日志关键词和排查路径快速匹配。",
+  "source": {
+    "type": "obsidian-markdown",
+    "path": "/Users/lilinke/Library/Mobile Documents/iCloud~md~obsidian/Documents/PKM/02-Wiki/concepts/iOS 开发踩坑记录.md",
+    "last_updated": "2026-07-07"
+  },
+  "categories": [
+    {
+      "id": "cloudkit",
+      "name": "CloudKit / CKShare",
+      "summary": "CloudKit schema、CKAsset 拉取、共享权限与同步状态。"
+    },
+    {
+      "id": "swiftui",
+      "name": "SwiftUI / Navigation",
+      "summary": "SwiftUI 浮层、导航时序、ViewBuilder metadata 与根部 chrome。"
+    },
+    {
+      "id": "widgetkit",
+      "name": "WidgetKit",
+      "summary": "Home Screen Widget 容器背景、透明玻璃效果与 descriptor 风险。"
+    },
+    {
+      "id": "swiftdata",
+      "name": "SwiftData / Core Data",
+      "summary": "外部存储、blob 文件丢失、NSException 与安全读取。"
+    }
+  ],
+  "pitfalls": [
+    {
+      "id": "pit-01-cloudkit-schema-production",
+      "sourceOrder": 1,
+      "category": "cloudkit",
+      "severity": "high",
+      "date": "2026-06-13",
+      "project": "Miboooo（iCloud 同步）",
+      "title": "CloudKit CKError 15：生产环境 schema 没部署",
+      "symptom": "TestFlight / App Store 正式环境 iCloud 同步报 CKErrorDomain 错误 15；本地 Xcode Debug 和早期 TF 包正常，一上正式自己和用户全员同步失败。",
+      "rootCause": "CKError 15 是 serverRejectedRequest。真正原因是 CloudKit Production 环境没有对应 record type / 字段；Development 会自动推断 schema，但 Production 必须手动 Deploy。",
+      "check": [
+        "确认错误是否是 CKErrorDomain 15 / serverRejectedRequest，而不是普通网络失败。",
+        "登录 CloudKit Console，切到 Production 环境，检查目标 record type 是否存在。",
+        "打开 Deploy Schema Changes diff，如果 record type / 字段都是 Create，说明 Production schema 没部署。",
+        "检查近期是否新增字段，例如 contentSignature / imageVersion 这类字段新增后忘记 Deploy。"
+      ],
+      "fix": [
+        "进入 icloud.developer.apple.com，选择正确 container。",
+        "在 Schema 的 Development 环境执行 Deploy Schema Changes，把新增 record types / indexes / security roles 部署到 Production。",
+        "修好后让用户重开 App 或手动点同步；这是服务端 schema 配置，通常不需要重新发版。",
+        "发版前把 CloudKit schema Deploy to Production 加入 checklist；必要时用 cktool export-schema 做版本管理和 CI 比对。"
+      ],
+      "agentKeywords": [
+        "CKErrorDomain 错误 15",
+        "CKError.serverRejectedRequest",
+        "Deploy Schema Changes",
+        "Production schema",
+        "Record type cannot be found",
+        "CloudKit Console",
+        "Queryable index",
+        "NSDebugDescriptionErrorKey"
+      ],
+      "avoid": "不要用 Debug / Development 环境成功来证明 TestFlight 或 App Store 的 CloudKit schema 已经可用。"
+    },
+    {
+      "id": "pit-02-swiftui-overlay-windowlevel",
+      "sourceOrder": 2,
+      "category": "swiftui",
+      "severity": "medium",
+      "date": "2026-06-23",
+      "project": "",
+      "title": "SwiftUI 全屏浮层 / 蒙版盖不住状态栏与导航栏",
+      "symptom": "自定义底部弹窗和半透明蒙版在 NavigationStack push 出来的子页面上弹出时，顶部状态栏区域漏白条，导航栏背景有时压在蒙版上；即使把浮层提到 SwiftUI 根 ZStack 并加高 zIndex 仍无效。",
+      "rootCause": "问题由祖先裁剪和 UIKit UINavigationBar 合成层叠加造成。zIndex 只管同一 SwiftUI 容器，不能跨出被 clipShape / mask 限制的祖先，也管不到同窗口内 UIKit 导航栏延伸到安全区的图层。",
+      "check": [
+        "确认问题是否只在 push 出来的子页、带圆角裁剪容器、或顶部安全区特殊处理页面出现。",
+        "检查浮层祖先是否存在 clipShape、mask、圆角容器或安全区排除。",
+        "判断 zIndex 提高后是否仍盖不住状态栏 / 导航栏背景；如果是，说明仍困在同一个 UIWindow 内。"
+      ],
+      "fix": [
+        "不要继续在同一 SwiftUI 视图树里斗层级，改用独立高 windowLevel 的透明 UIWindow 承载浮层。",
+        "从 foregroundActive UIWindowScene 创建 UIWindow，并设置 windowLevel = .statusBar + 100。",
+        "窗口、UIHostingController view 都设置 backgroundColor = .clear、isOpaque = false。",
+        "用单例 controller 强引用 UIWindow，关闭时 window.isHidden = true 并置 nil。",
+        "设置 accessibilityViewIsModal = true，让 VoiceOver 焦点限制在浮层内。"
+      ],
+      "agentKeywords": [
+        "SwiftUI overlay",
+        "NavigationStack",
+        "status bar white strip",
+        "UINavigationBar",
+        "zIndex ineffective",
+        "windowLevel",
+        "UIWindow",
+        "UIHostingController",
+        "clipShape",
+        "mask",
+        "accessibilityViewIsModal"
+      ],
+      "avoid": "不要指望 zIndex 能压过 UIKit 导航栏合成层或突破祖先裁剪；真正全屏浮层要跳到更高 UIWindow。"
+    },
+    {
+      "id": "pit-03-navigation-chrome-one-frame-late",
+      "sourceOrder": 3,
+      "category": "swiftui",
+      "severity": "medium",
+      "date": "2026-06-25",
+      "project": "",
+      "title": "push 进二级页面时底部闪白 / 灰条",
+      "symptom": "NavigationStack push 进入二级页面时，底部先闪一下白底或灰条，然后二级页内容才画出来；问题时有时无，多个二级页都能复现。",
+      "rootCause": "根部 chrome 依赖 isInDetail 这类全局标志决定面板是否撑满，但标志在被 push 页面 onAppear 才置位，比页面首帧渲染晚一帧。若用 withAnimation 包全局状态，还可能把 navigation push 卷入同一个动画事务，引发 onAppear/onDisappear 循环、卡死或返回键消失。",
+      "check": [
+        "观察闪白是否发生在 push 首帧，且之后页面正常。",
+        "检查根部 dock、tab、圆角面板等 chrome 是否依赖 onAppear 才更新导航状态。",
+        "如果给状态变化套 withAnimation 后出现卡死或返回键消失，优先怀疑动画事务和导航事务纠缠。"
+      ],
+      "fix": [
+        "把 NavigationLink(value:) 改为 Button，在路由触发点先同步置位 chrome 状态，再 push。",
+        "用 Transaction(disablesAnimations: true) 设置 chromeInDetail，进入详情时瞬间撑满，不做入场动画。",
+        "用 DispatchQueue.main.async { path.append(route) } 把真正 push 推迟到下一帧，确保 chrome 已先撑满。",
+        "用统一派生量 inDetail = isInDetail || chromeInDetail 驱动面板高度、圆角、dock、tab 栏。",
+        "返回首页才做 spring 滑入；进入详情不要复用出场动画。"
+      ],
+      "agentKeywords": [
+        "NavigationStack push",
+        "bottom flash",
+        "white strip",
+        "gray bar",
+        "onAppear late",
+        "isInDetail",
+        "chromeInDetail",
+        "withTransaction",
+        "disablesAnimations",
+        "path.append",
+        "withAnimation navigation loop"
+      ],
+      "avoid": "不要在被 push 页面的 onAppear 才更新根部 chrome 状态；也不要用 withAnimation 包裹会影响导航事务的全局状态。"
+    },
+    {
+      "id": "pit-04-widget-transparent-background-private-descriptor",
+      "sourceOrder": 4,
+      "category": "widgetkit",
+      "severity": "medium",
+      "date": "2026-06-28",
+      "project": "",
+      "title": "Home Screen Widget 透明玻璃背景：公开 API 只能接近",
+      "symptom": "想做透出桌面壁纸的玻璃 Home Screen Widget。SwiftUI 里用了 Color.clear、containerBackground(for: .widget)、glassEffect 或 ultraThinMaterial，真机桌面仍显示白色卡片。",
+      "rootCause": "Home Screen Widget 的卡片底色由 WidgetKit / SpringBoard 根据 Widget descriptor 决定，不是普通 SwiftUI 背景。公开 API 能控制内容树和 containerBackground，但不能把 descriptor 标成 transparent / background removable。",
+      "check": [
+        "确认 Widget 在 Simulator / 真机可添加，但桌面上仍是白底卡片。",
+        "确认改 SwiftUI 背景、材质、透明度只影响卡片内部，不能透出壁纸。",
+        "如果 descriptor patch 写错后 Widget 从添加列表消失，说明触碰到了 WidgetKit descriptor 枚举路径。"
+      ],
+      "fix": [
+        "公开 API 路线只能做近似材质感，接受无法真正移除 Home Screen Widget 宿主卡片的上限。",
+        "若明确接受私有 API 风险，可参考 ClearAndBlurredWidgets，在 Widget extension 中 hook descriptor fetch 回调。",
+        "patch 目标 CHSWidgetDescriptor 的 backgroundRemovable、transparent、supportsVibrantContent、preferredBackgroundStyle 等字段。",
+        "SwiftUI 侧仍提供 Color.clear 的 containerBackground，避免内容树自己画底。",
+        "Debug / Release 要分别检查私有 patch 是否进入正确 binary；Xcode 17 Debug 可能在 WidgetExtension.debug.dylib。"
+      ],
+      "agentKeywords": [
+        "WidgetKit",
+        "Home Screen Widget",
+        "transparent widget",
+        "containerBackground",
+        "glassEffect",
+        "showsWidgetContainerBackground",
+        "CHSWidgetDescriptor",
+        "setBackgroundRemovable",
+        "setTransparent",
+        "supportsVibrantContent",
+        "ClearAndBlurredWidgets",
+        "WidgetExtension.debug.dylib"
+      ],
+      "avoid": "不要把公开 SwiftUI 背景透明误认为能移除系统 Widget 宿主卡片；私有 descriptor patch 有审核和系统版本风险。"
+    },
+    {
+      "id": "pit-05-swiftui-viewbuilder-metadata-recursion",
+      "sourceOrder": 5,
+      "category": "swiftui",
+      "severity": "high",
+      "date": "2026-06-30",
+      "project": "Miboooo（Settings 页面 Debug 卡片）",
+      "title": "SwiftUI 巨型 @ViewBuilder / 计算属性真机 metadata 递归爆栈",
+      "symptom": "Settings 页面真机点击进入就闪退，崩溃为 EXC_BAD_ACCESS / Thread stack size exceeded due to excessive recursion。栈里反复出现 SettingsView.debugCard.getter、settingsCard、ViewBuilder helper 和 SettingsView.body.getter；模拟器可能不复现。",
+      "rootCause": "SwiftUI 在真机上实例化巨型 body 泛型类型 / ViewBuilder metadata 时递归过深。@ViewBuilder 函数、some View 计算属性和泛型 helper 都会塌进父 View.body 的类型图里；再包一层 helper 并不会形成真正边界。",
+      "check": [
+        "确认是否真机崩、模拟器不一定崩。",
+        "查看崩溃报告是否包含 Thread stack size exceeded due to excessive recursion。",
+        "观察栈里是否反复出现某个大块 computed view getter、ViewBuilder 或泛型 helper。",
+        "检查页面是否由大量 card、section、button、toggle、sheet、alert、#if DEBUG 大块拼成。"
+      ],
+      "fix": [
+        "不要只把大块改成另一个 @ViewBuilder helper。",
+        "把大块 View 抽成独立 struct: View，例如 DebugSettingsCard(showsPaywall: $showsPaywall)。",
+        "让独立 View 类型形成新的 metadata / 子图边界，避免继续摊进父 View.body 的超长泛型图。",
+        "Settings / Profile / Dashboard 这类复杂页面，把超过一屏的大块优先拆成独立 View 类型。",
+        "修完必须真机 build / install 验证；模拟器通过不能证明该坑消失。"
+      ],
+      "agentKeywords": [
+        "SwiftUI",
+        "@ViewBuilder",
+        "some View",
+        "metadata recursion",
+        "Thread stack size exceeded",
+        "EXC_BAD_ACCESS",
+        "SettingsView.body.getter",
+        "debugCard.getter",
+        "independent struct View",
+        "真机闪退",
+        "#if DEBUG"
+      ],
+      "avoid": "不要把巨型 ViewBuilder helper 当作复杂度边界；降低 SwiftUI metadata 压力必须抽成独立 View 类型。"
+    },
+    {
+      "id": "pit-06-cloudkit-desiredkeys-asset-cache-growth",
+      "sourceOrder": 6,
+      "category": "cloudkit",
+      "severity": "high",
+      "date": "2026-07-07",
+      "project": "Miboooo（iCloud / 家庭共享同步）",
+      "title": "CloudKit desiredKeys: nil 全量拉导致本地缓存暴涨",
+      "symptom": "开启 iCloud 同步后，打开 App 什么都不做，存储占用持续从 2G 涨到 8G、18G、60G+。共享相册设备尤其明显。删掉启动时清理 Library/Caches/CloudKit 的兜底代码后，暴涨立刻失控。",
+      "rootCause": "同步拉取 database.recordZoneChanges(since:desiredKeys:) 时 desiredKeys 传 nil，导致 CloudKit 下载 zone 里每条记录的 @Attribute(.externalStorage) 大 CKAsset 到 Library/Caches/CloudKit。即使应用层随后判断内容签名没变并丢弃，字节也已落进系统缓存。为拿一条 root 记录却全量 zone 拉取也是同类变体。",
+      "check": [
+        "不要只看应用层日志；如果日志显示 mods=0 但存储仍在涨，去看 cloudd 日志。",
+        "真机抓 syslog，过滤 cloudd / Downloaded asset，确认是否同一 record 的 asset 被反复下载。",
+        "检查是否每次切前台触发同步，且 desiredKeys 为 nil。",
+        "注意 macOS 没有 timeout 命令；timeout idevicesyslog 可能静默失败。"
+      ],
+      "fix": [
+        "把主拉取改成两段式：第一阶段 desiredKeys 白名单只取元数据和内容签名，排除 CKAsset 字段。",
+        "第二阶段只对内容签名判定需要采纳云端的记录，用 database.records(for:) 按 ID 补拉完整记录。",
+        "补拉判定必须复用真正 import 时的同一个纯函数，避免多拉或漏拉。",
+        "只为拿 root / 探测记录时，desiredKeys 传空数组 []，只要 recordID 和系统字段，不带 asset。",
+        "删任何启动清缓存这类治标代码前，先确认真正止血逻辑已经补上。"
+      ],
+      "agentKeywords": [
+        "CloudKit",
+        "desiredKeys nil",
+        "recordZoneChanges",
+        "CKAsset",
+        "externalStorage",
+        "Library/Caches/CloudKit",
+        "cloudd",
+        "Downloaded asset",
+        "idevicesyslog",
+        "mods=0",
+        "database.records(for:)",
+        "change token",
+        "desiredKeys []"
+      ],
+      "avoid": "不要在 zone 里有大 asset 时用 desiredKeys: nil 做列表、探测或全量比对；应用层跳过不等于系统缓存没下载。"
+    },
+    {
+      "id": "pit-07-ckshare-permissionfailure-tombstone-reset",
+      "sourceOrder": 7,
+      "category": "cloudkit",
+      "severity": "high",
+      "date": "2026-07-07",
+      "project": "Miboooo（家庭共享 / CKShare）",
+      "title": "CKShare 同步失败与删除照片复活",
+      "symptom": "双人共享相册里 participant 侧频繁提示共享已失效、需要重新邀请；同时在一台设备删除的照片过一阵又自己回来，尤其在接受邀请或重连之后。",
+      "rootCause": "两个 bug 叠加：permissionFailure（CKError code 10）在 owner 尚未把 participant 升级到 readWrite 的握手窗口里是瞬时态，却被误判为共享永久失效；接受邀请时 resetLocalSyncIdentity() 又清空了 pending-delete / deleted-day 删除墓碑。共享相册是只增不删模型，墓碑一清，云端从未真删的记录会全量 import，导致照片复活。",
+      "check": [
+        "按 owner / participant 角色分开排查；只有 participant 出问题时，优先检查共享 zone 权限与 accept / reset 流程。",
+        "如果现象是删了又回来，且同步模型是只增不删，检查删除墓碑是否在 reset / accept / 清缓存中被清空。",
+        "检查 permissionFailure 是否被放进了共享永久失效错误集合。"
+      ],
+      "fix": [
+        "把 permissionFailure 移出判定共享失效的错误集合，只保留 unknownItem、zoneNotFound 等更接近永久失效的信号。",
+        "resetLocalSyncIdentity() 只清同步身份相关状态，例如 owner 标记、known 集、change token、dirty、adopted LWW。",
+        "resetLocalSyncIdentity() 必须保留 pending-delete / deleted-day 删除墓碑；删除是用户意图，不是设备同步身份。",
+        "砍掉不能覆盖真实恢复场景的 participant 重置按钮，改为准确提示请相册主重新邀请。"
+      ],
+      "agentKeywords": [
+        "CKShare",
+        "permissionFailure",
+        "CKError code 10",
+        "participant",
+        "owner",
+        "readWrite",
+        "resetLocalSyncIdentity",
+        "pending-delete",
+        "deleted-day",
+        "tombstone",
+        "zoneNotFound",
+        "unknownItem",
+        "照片复活",
+        "共享已失效"
+      ],
+      "avoid": "不要把 CKError permissionFailure 一律当作共享永久失效；也不要在重置同步身份时清掉删除墓碑。"
+    },
+    {
+      "id": "pit-08-swiftdata-externalstorage-nsexception",
+      "sourceOrder": 8,
+      "category": "swiftdata",
+      "severity": "high",
+      "date": "2026-07-07",
+      "project": "Miboooo（SwiftData / 本地图片存储）",
+      "title": "SwiftData/Core Data 外部存储文件丢失导致 NSException abort",
+      "symptom": "App 在某些设备上闪退，崩溃栈固定出现 -[_PFExternalReferenceData _retrieveExternalData]、-[NSData _bridgingCopy:length:]、objc_exception_throw、abort(SIGABRT)。触发点是 UI 渲染读某张照片 thumbnailData；此前设备经历过存储撑满和 JetsamEvent。",
+      "rootCause": "SwiftData 图片字段使用 @Attribute(.externalStorage)，底层 Core Data 把大 blob 存成独立文件。当外部文件因磁盘满、JetsamEvent 或写入中断丢失时，主库引用变成悬空引用。读取属性时 Core Data 抛 Objective-C NSException 并 abort；这不是 Swift Error，do/catch、try? 和 NSSetUncaughtExceptionHandler 都拦不住。",
+      "check": [
+        "查看崩溃栈是否包含 _PFExternalReferenceData _retrieveExternalData、_bridgingCopy、objc_exception_throw。",
+        "确认是否点到某条特定数据必崩、其他数据正常；这通常是那条外部 blob 坏了。",
+        "用 idevicecrashreport 拉 .ips，解析崩溃线程定位具体读取属性，例如 PhotoAsset.thumbnailData.getter。",
+        "检查是否有计算属性或缓存 key 为了算签名反复读取整个 blob。"
+      ],
+      "fix": [
+        "新增 Objective-C 桥，用 @try/@catch 包住 blob 读取，并用 NS_SWIFT_NAME(catching(_:)) 暴露给 Swift。",
+        "只在 App target 配 bridging header；Widget 等 extension 不应引入。",
+        "给模型加 safeXxxData 访问器，通过 OC 桥读取 blob，文件缺失返回 nil 而不是 abort。",
+        "所有 UI / 渲染路径改走 safeXxxData，nil 时显示占位图，保持 App 可用。",
+        "内容身份、缓存 key 等高频计算不要读 blob，改用内容版本号和状态标志。"
+      ],
+      "agentKeywords": [
+        "SwiftData",
+        "Core Data",
+        "@Attribute(.externalStorage)",
+        "_PFExternalReferenceData",
+        "_retrieveExternalData",
+        "_bridgingCopy",
+        "objc_exception_throw",
+        "NSException",
+        "SIGABRT",
+        "thumbnailData",
+        "JetsamEvent",
+        "Objective-C @try/@catch",
+        "bridging header",
+        "safeXxxData",
+        "nonisolated(unsafe)"
+      ],
+      "avoid": "不要以为 Swift 的 try? 能拦住外部存储文件丢失引发的 NSException；所有 externalStorage blob 读取都要经过安全访问器。"
+    }
+  ]
+}
+  </script>
+
+  <script>
+    const data = JSON.parse(document.getElementById("pitfall-data").textContent);
+    const categories = new Map(data.categories.map((category) => [category.id, category]));
+    const state = { category: "all", query: "" };
+
+    const elements = {
+      filters: document.getElementById("filters"),
+      categoryList: document.getElementById("category-list"),
+      pitfallList: document.getElementById("pitfall-list"),
+      search: document.getElementById("search"),
+      clearSearch: document.getElementById("clear-search"),
+      resultTitle: document.getElementById("result-title"),
+      resultCount: document.getElementById("result-count"),
+      empty: document.getElementById("empty"),
+      toast: document.getElementById("toast"),
+      copyAll: document.getElementById("copy-all"),
+      copyInstall: document.getElementById("copy-install"),
+      installCommand: document.getElementById("install-command")
+    };
+
+    document.getElementById("stat-count").textContent = data.pitfalls.length;
+    document.getElementById("stat-categories").textContent = data.categories.length;
+    document.getElementById("stat-high").textContent = data.pitfalls.filter((item) => item.severity === "high").length;
+
+    function createButton(label, categoryId) {
+      const button = document.createElement("button");
+      button.className = "chip";
+      button.type = "button";
+      button.textContent = label;
+      button.setAttribute("aria-pressed", String(state.category === categoryId));
+      button.addEventListener("click", () => {
+        state.category = categoryId;
+        render();
+      });
+      return button;
+    }
+
+    function renderFilters() {
+      elements.filters.replaceChildren(
+        createButton("全部", "all"),
+        ...data.categories.map((category) => createButton(category.name, category.id))
+      );
+    }
+
+    function renderCategoryList() {
+      const counts = countByCategory();
+      const links = data.categories.map((category) => {
+        const link = document.createElement("a");
+        link.className = "category-link";
+        link.href = "#main";
+        link.innerHTML = `<strong>${category.name}</strong><span>${counts[category.id] || 0}</span>`;
+        link.addEventListener("click", () => {
+          state.category = category.id;
+          render();
+        });
+        return link;
+      });
+      elements.categoryList.replaceChildren(...links);
+    }
+
+    function countByCategory() {
+      return data.pitfalls.reduce((accumulator, item) => {
+        accumulator[item.category] = (accumulator[item.category] || 0) + 1;
+        return accumulator;
+      }, {});
+    }
+
+    function normalize(value) {
+      return String(value).toLowerCase().trim();
+    }
+
+    function matches(item) {
+      const query = normalize(state.query);
+      const categoryMatch = state.category === "all" || item.category === state.category;
+      if (!categoryMatch) return false;
+      if (!query) return true;
+
+      const haystack = [
+        item.id,
+        item.title,
+        item.symptom,
+        item.rootCause,
+        item.avoid,
+        categories.get(item.category)?.name,
+        ...item.check,
+        ...item.fix,
+        ...item.agentKeywords
+      ].join(" ").toLowerCase();
+
+      return query.split(/\s+/).every((token) => haystack.includes(token));
+    }
+
+    function markdownForItem(item) {
+      return [
+        `# ${item.title}`,
+        `ID: ${item.id}`,
+        `Category: ${categories.get(item.category)?.name || item.category}`,
+        `Severity: ${item.severity}`,
+        `Symptom: ${item.symptom}`,
+        `Root cause: ${item.rootCause}`,
+        `Check: ${item.check.join(" / ")}`,
+        `Fix: ${item.fix.join(" / ")}`,
+        `Avoid: ${item.avoid}`,
+        `Agent keywords: ${item.agentKeywords.join(", ")}`
+      ].join("\n");
+    }
+
+    function showToast(message) {
+      elements.toast.textContent = message;
+      elements.toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => elements.toast.classList.remove("show"), 1600);
+    }
+
+    async function copyText(text, message) {
+      try {
+        await navigator.clipboard.writeText(text);
+        showToast(message);
+      } catch {
+        showToast("浏览器阻止了复制");
+      }
+    }
+
+    function makePitfallCard(item) {
+      const card = document.createElement("article");
+      card.className = "pitfall";
+      card.id = item.id;
+      const category = categories.get(item.category);
+      const severityLabel = item.severity === "high" ? "高风险" : "中风险";
+
+      card.innerHTML = `
+        <header class="pitfall-header">
+          <div class="meta-row">
+            <span class="badge">${item.id}</span>
+            <span class="badge ${item.severity}">${severityLabel}</span>
+            <span class="badge">${category?.name || item.category}</span>
+          </div>
+          <h3>${item.title}</h3>
+        </header>
+        <dl class="summary-grid">
+          <div class="field">
+            <dt>症状</dt>
+            <dd>${item.symptom}</dd>
+          </div>
+          <div class="field">
+            <dt>根因</dt>
+            <dd>${item.rootCause}</dd>
+          </div>
+        </dl>
+        <div class="details">
+          <details>
+            <summary>检查路径</summary>
+            <ul>${item.check.map((entry) => `<li>${entry}</li>`).join("")}</ul>
+          </details>
+          <details>
+            <summary>修复动作</summary>
+            <ul>${item.fix.map((entry) => `<li>${entry}</li>`).join("")}</ul>
+          </details>
+        </div>
+        <div class="keywords" aria-label="Agent 关键词">
+          ${item.agentKeywords.map((keyword) => `<span class="keyword">${keyword}</span>`).join("")}
+        </div>
+        <footer class="pitfall-actions">
+          <span class="avoid">${item.avoid}</span>
+          <button class="copy-btn" type="button">复制条目</button>
+        </footer>
+      `;
+
+      card.querySelector(".copy-btn").addEventListener("click", () => {
+        copyText(markdownForItem(item), `已复制 ${item.id}`);
+      });
+
+      return card;
+    }
+
+    function getFilteredItems() {
+      return data.pitfalls.filter(matches);
+    }
+
+    function renderResults() {
+      const items = getFilteredItems();
+      const cards = items.map(makePitfallCard);
+      const categoryName = state.category === "all" ? "全部坑点" : categories.get(state.category)?.name;
+      elements.resultTitle.textContent = categoryName || "全部坑点";
+      elements.resultCount.textContent = `${items.length} 条`;
+      elements.empty.style.display = items.length ? "none" : "block";
+      elements.pitfallList.replaceChildren(...cards);
+    }
+
+    function render() {
+      renderFilters();
+      renderCategoryList();
+      renderResults();
+    }
+
+    elements.search.addEventListener("input", (event) => {
+      state.query = event.target.value;
+      renderResults();
+    });
+
+    elements.clearSearch.addEventListener("click", () => {
+      state.query = "";
+      elements.search.value = "";
+      renderResults();
+      elements.search.focus();
+    });
+
+    elements.copyAll.addEventListener("click", () => {
+      const compact = {
+        title: data.title,
+        version: data.version,
+        usage: "Search by category, title, symptom, rootCause, check, fix, agentKeywords.",
+        pitfalls: data.pitfalls.map((item) => ({
+          id: item.id,
+          category: item.category,
+          severity: item.severity,
+          title: item.title,
+          symptom: item.symptom,
+          rootCause: item.rootCause,
+          check: item.check,
+          fix: item.fix,
+          agentKeywords: item.agentKeywords
+        }))
+      };
+      copyText(JSON.stringify(compact, null, 2), "已复制 Agent 摘要");
+    });
+
+    elements.copyInstall.addEventListener("click", () => {
+      copyText(elements.installCommand.textContent.trim(), "已复制安装命令");
+    });
+
+    render();
+  </script>
+</body>
+</html>

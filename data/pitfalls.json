@@ -1,0 +1,339 @@
+{
+  "version": "2026-07-07",
+  "title": "iOS 开发踩坑记录",
+  "purpose": "从 Obsidian 源文档抽取真实 iOS / Swift 踩坑记录，供 Agent 按症状、日志关键词和排查路径快速匹配。",
+  "source": {
+    "type": "obsidian-markdown",
+    "path": "/Users/lilinke/Library/Mobile Documents/iCloud~md~obsidian/Documents/PKM/02-Wiki/concepts/iOS 开发踩坑记录.md",
+    "last_updated": "2026-07-07"
+  },
+  "categories": [
+    {
+      "id": "cloudkit",
+      "name": "CloudKit / CKShare",
+      "summary": "CloudKit schema、CKAsset 拉取、共享权限与同步状态。"
+    },
+    {
+      "id": "swiftui",
+      "name": "SwiftUI / Navigation",
+      "summary": "SwiftUI 浮层、导航时序、ViewBuilder metadata 与根部 chrome。"
+    },
+    {
+      "id": "widgetkit",
+      "name": "WidgetKit",
+      "summary": "Home Screen Widget 容器背景、透明玻璃效果与 descriptor 风险。"
+    },
+    {
+      "id": "swiftdata",
+      "name": "SwiftData / Core Data",
+      "summary": "外部存储、blob 文件丢失、NSException 与安全读取。"
+    }
+  ],
+  "pitfalls": [
+    {
+      "id": "pit-01-cloudkit-schema-production",
+      "sourceOrder": 1,
+      "category": "cloudkit",
+      "severity": "high",
+      "date": "2026-06-13",
+      "project": "Miboooo（iCloud 同步）",
+      "title": "CloudKit CKError 15：生产环境 schema 没部署",
+      "symptom": "TestFlight / App Store 正式环境 iCloud 同步报 CKErrorDomain 错误 15；本地 Xcode Debug 和早期 TF 包正常，一上正式自己和用户全员同步失败。",
+      "rootCause": "CKError 15 是 serverRejectedRequest。真正原因是 CloudKit Production 环境没有对应 record type / 字段；Development 会自动推断 schema，但 Production 必须手动 Deploy。",
+      "check": [
+        "确认错误是否是 CKErrorDomain 15 / serverRejectedRequest，而不是普通网络失败。",
+        "登录 CloudKit Console，切到 Production 环境，检查目标 record type 是否存在。",
+        "打开 Deploy Schema Changes diff，如果 record type / 字段都是 Create，说明 Production schema 没部署。",
+        "检查近期是否新增字段，例如 contentSignature / imageVersion 这类字段新增后忘记 Deploy。"
+      ],
+      "fix": [
+        "进入 icloud.developer.apple.com，选择正确 container。",
+        "在 Schema 的 Development 环境执行 Deploy Schema Changes，把新增 record types / indexes / security roles 部署到 Production。",
+        "修好后让用户重开 App 或手动点同步；这是服务端 schema 配置，通常不需要重新发版。",
+        "发版前把 CloudKit schema Deploy to Production 加入 checklist；必要时用 cktool export-schema 做版本管理和 CI 比对。"
+      ],
+      "agentKeywords": [
+        "CKErrorDomain 错误 15",
+        "CKError.serverRejectedRequest",
+        "Deploy Schema Changes",
+        "Production schema",
+        "Record type cannot be found",
+        "CloudKit Console",
+        "Queryable index",
+        "NSDebugDescriptionErrorKey"
+      ],
+      "avoid": "不要用 Debug / Development 环境成功来证明 TestFlight 或 App Store 的 CloudKit schema 已经可用。"
+    },
+    {
+      "id": "pit-02-swiftui-overlay-windowlevel",
+      "sourceOrder": 2,
+      "category": "swiftui",
+      "severity": "medium",
+      "date": "2026-06-23",
+      "project": "",
+      "title": "SwiftUI 全屏浮层 / 蒙版盖不住状态栏与导航栏",
+      "symptom": "自定义底部弹窗和半透明蒙版在 NavigationStack push 出来的子页面上弹出时，顶部状态栏区域漏白条，导航栏背景有时压在蒙版上；即使把浮层提到 SwiftUI 根 ZStack 并加高 zIndex 仍无效。",
+      "rootCause": "问题由祖先裁剪和 UIKit UINavigationBar 合成层叠加造成。zIndex 只管同一 SwiftUI 容器，不能跨出被 clipShape / mask 限制的祖先，也管不到同窗口内 UIKit 导航栏延伸到安全区的图层。",
+      "check": [
+        "确认问题是否只在 push 出来的子页、带圆角裁剪容器、或顶部安全区特殊处理页面出现。",
+        "检查浮层祖先是否存在 clipShape、mask、圆角容器或安全区排除。",
+        "判断 zIndex 提高后是否仍盖不住状态栏 / 导航栏背景；如果是，说明仍困在同一个 UIWindow 内。"
+      ],
+      "fix": [
+        "不要继续在同一 SwiftUI 视图树里斗层级，改用独立高 windowLevel 的透明 UIWindow 承载浮层。",
+        "从 foregroundActive UIWindowScene 创建 UIWindow，并设置 windowLevel = .statusBar + 100。",
+        "窗口、UIHostingController view 都设置 backgroundColor = .clear、isOpaque = false。",
+        "用单例 controller 强引用 UIWindow，关闭时 window.isHidden = true 并置 nil。",
+        "设置 accessibilityViewIsModal = true，让 VoiceOver 焦点限制在浮层内。"
+      ],
+      "agentKeywords": [
+        "SwiftUI overlay",
+        "NavigationStack",
+        "status bar white strip",
+        "UINavigationBar",
+        "zIndex ineffective",
+        "windowLevel",
+        "UIWindow",
+        "UIHostingController",
+        "clipShape",
+        "mask",
+        "accessibilityViewIsModal"
+      ],
+      "avoid": "不要指望 zIndex 能压过 UIKit 导航栏合成层或突破祖先裁剪；真正全屏浮层要跳到更高 UIWindow。"
+    },
+    {
+      "id": "pit-03-navigation-chrome-one-frame-late",
+      "sourceOrder": 3,
+      "category": "swiftui",
+      "severity": "medium",
+      "date": "2026-06-25",
+      "project": "",
+      "title": "push 进二级页面时底部闪白 / 灰条",
+      "symptom": "NavigationStack push 进入二级页面时，底部先闪一下白底或灰条，然后二级页内容才画出来；问题时有时无，多个二级页都能复现。",
+      "rootCause": "根部 chrome 依赖 isInDetail 这类全局标志决定面板是否撑满，但标志在被 push 页面 onAppear 才置位，比页面首帧渲染晚一帧。若用 withAnimation 包全局状态，还可能把 navigation push 卷入同一个动画事务，引发 onAppear/onDisappear 循环、卡死或返回键消失。",
+      "check": [
+        "观察闪白是否发生在 push 首帧，且之后页面正常。",
+        "检查根部 dock、tab、圆角面板等 chrome 是否依赖 onAppear 才更新导航状态。",
+        "如果给状态变化套 withAnimation 后出现卡死或返回键消失，优先怀疑动画事务和导航事务纠缠。"
+      ],
+      "fix": [
+        "把 NavigationLink(value:) 改为 Button，在路由触发点先同步置位 chrome 状态，再 push。",
+        "用 Transaction(disablesAnimations: true) 设置 chromeInDetail，进入详情时瞬间撑满，不做入场动画。",
+        "用 DispatchQueue.main.async { path.append(route) } 把真正 push 推迟到下一帧，确保 chrome 已先撑满。",
+        "用统一派生量 inDetail = isInDetail || chromeInDetail 驱动面板高度、圆角、dock、tab 栏。",
+        "返回首页才做 spring 滑入；进入详情不要复用出场动画。"
+      ],
+      "agentKeywords": [
+        "NavigationStack push",
+        "bottom flash",
+        "white strip",
+        "gray bar",
+        "onAppear late",
+        "isInDetail",
+        "chromeInDetail",
+        "withTransaction",
+        "disablesAnimations",
+        "path.append",
+        "withAnimation navigation loop"
+      ],
+      "avoid": "不要在被 push 页面的 onAppear 才更新根部 chrome 状态；也不要用 withAnimation 包裹会影响导航事务的全局状态。"
+    },
+    {
+      "id": "pit-04-widget-transparent-background-private-descriptor",
+      "sourceOrder": 4,
+      "category": "widgetkit",
+      "severity": "medium",
+      "date": "2026-06-28",
+      "project": "",
+      "title": "Home Screen Widget 透明玻璃背景：公开 API 只能接近",
+      "symptom": "想做透出桌面壁纸的玻璃 Home Screen Widget。SwiftUI 里用了 Color.clear、containerBackground(for: .widget)、glassEffect 或 ultraThinMaterial，真机桌面仍显示白色卡片。",
+      "rootCause": "Home Screen Widget 的卡片底色由 WidgetKit / SpringBoard 根据 Widget descriptor 决定，不是普通 SwiftUI 背景。公开 API 能控制内容树和 containerBackground，但不能把 descriptor 标成 transparent / background removable。",
+      "check": [
+        "确认 Widget 在 Simulator / 真机可添加，但桌面上仍是白底卡片。",
+        "确认改 SwiftUI 背景、材质、透明度只影响卡片内部，不能透出壁纸。",
+        "如果 descriptor patch 写错后 Widget 从添加列表消失，说明触碰到了 WidgetKit descriptor 枚举路径。"
+      ],
+      "fix": [
+        "公开 API 路线只能做近似材质感，接受无法真正移除 Home Screen Widget 宿主卡片的上限。",
+        "若明确接受私有 API 风险，可参考 ClearAndBlurredWidgets，在 Widget extension 中 hook descriptor fetch 回调。",
+        "patch 目标 CHSWidgetDescriptor 的 backgroundRemovable、transparent、supportsVibrantContent、preferredBackgroundStyle 等字段。",
+        "SwiftUI 侧仍提供 Color.clear 的 containerBackground，避免内容树自己画底。",
+        "Debug / Release 要分别检查私有 patch 是否进入正确 binary；Xcode 17 Debug 可能在 WidgetExtension.debug.dylib。"
+      ],
+      "agentKeywords": [
+        "WidgetKit",
+        "Home Screen Widget",
+        "transparent widget",
+        "containerBackground",
+        "glassEffect",
+        "showsWidgetContainerBackground",
+        "CHSWidgetDescriptor",
+        "setBackgroundRemovable",
+        "setTransparent",
+        "supportsVibrantContent",
+        "ClearAndBlurredWidgets",
+        "WidgetExtension.debug.dylib"
+      ],
+      "avoid": "不要把公开 SwiftUI 背景透明误认为能移除系统 Widget 宿主卡片；私有 descriptor patch 有审核和系统版本风险。"
+    },
+    {
+      "id": "pit-05-swiftui-viewbuilder-metadata-recursion",
+      "sourceOrder": 5,
+      "category": "swiftui",
+      "severity": "high",
+      "date": "2026-06-30",
+      "project": "Miboooo（Settings 页面 Debug 卡片）",
+      "title": "SwiftUI 巨型 @ViewBuilder / 计算属性真机 metadata 递归爆栈",
+      "symptom": "Settings 页面真机点击进入就闪退，崩溃为 EXC_BAD_ACCESS / Thread stack size exceeded due to excessive recursion。栈里反复出现 SettingsView.debugCard.getter、settingsCard、ViewBuilder helper 和 SettingsView.body.getter；模拟器可能不复现。",
+      "rootCause": "SwiftUI 在真机上实例化巨型 body 泛型类型 / ViewBuilder metadata 时递归过深。@ViewBuilder 函数、some View 计算属性和泛型 helper 都会塌进父 View.body 的类型图里；再包一层 helper 并不会形成真正边界。",
+      "check": [
+        "确认是否真机崩、模拟器不一定崩。",
+        "查看崩溃报告是否包含 Thread stack size exceeded due to excessive recursion。",
+        "观察栈里是否反复出现某个大块 computed view getter、ViewBuilder 或泛型 helper。",
+        "检查页面是否由大量 card、section、button、toggle、sheet、alert、#if DEBUG 大块拼成。"
+      ],
+      "fix": [
+        "不要只把大块改成另一个 @ViewBuilder helper。",
+        "把大块 View 抽成独立 struct: View，例如 DebugSettingsCard(showsPaywall: $showsPaywall)。",
+        "让独立 View 类型形成新的 metadata / 子图边界，避免继续摊进父 View.body 的超长泛型图。",
+        "Settings / Profile / Dashboard 这类复杂页面，把超过一屏的大块优先拆成独立 View 类型。",
+        "修完必须真机 build / install 验证；模拟器通过不能证明该坑消失。"
+      ],
+      "agentKeywords": [
+        "SwiftUI",
+        "@ViewBuilder",
+        "some View",
+        "metadata recursion",
+        "Thread stack size exceeded",
+        "EXC_BAD_ACCESS",
+        "SettingsView.body.getter",
+        "debugCard.getter",
+        "independent struct View",
+        "真机闪退",
+        "#if DEBUG"
+      ],
+      "avoid": "不要把巨型 ViewBuilder helper 当作复杂度边界；降低 SwiftUI metadata 压力必须抽成独立 View 类型。"
+    },
+    {
+      "id": "pit-06-cloudkit-desiredkeys-asset-cache-growth",
+      "sourceOrder": 6,
+      "category": "cloudkit",
+      "severity": "high",
+      "date": "2026-07-07",
+      "project": "Miboooo（iCloud / 家庭共享同步）",
+      "title": "CloudKit desiredKeys: nil 全量拉导致本地缓存暴涨",
+      "symptom": "开启 iCloud 同步后，打开 App 什么都不做，存储占用持续从 2G 涨到 8G、18G、60G+。共享相册设备尤其明显。删掉启动时清理 Library/Caches/CloudKit 的兜底代码后，暴涨立刻失控。",
+      "rootCause": "同步拉取 database.recordZoneChanges(since:desiredKeys:) 时 desiredKeys 传 nil，导致 CloudKit 下载 zone 里每条记录的 @Attribute(.externalStorage) 大 CKAsset 到 Library/Caches/CloudKit。即使应用层随后判断内容签名没变并丢弃，字节也已落进系统缓存。为拿一条 root 记录却全量 zone 拉取也是同类变体。",
+      "check": [
+        "不要只看应用层日志；如果日志显示 mods=0 但存储仍在涨，去看 cloudd 日志。",
+        "真机抓 syslog，过滤 cloudd / Downloaded asset，确认是否同一 record 的 asset 被反复下载。",
+        "检查是否每次切前台触发同步，且 desiredKeys 为 nil。",
+        "注意 macOS 没有 timeout 命令；timeout idevicesyslog 可能静默失败。"
+      ],
+      "fix": [
+        "把主拉取改成两段式：第一阶段 desiredKeys 白名单只取元数据和内容签名，排除 CKAsset 字段。",
+        "第二阶段只对内容签名判定需要采纳云端的记录，用 database.records(for:) 按 ID 补拉完整记录。",
+        "补拉判定必须复用真正 import 时的同一个纯函数，避免多拉或漏拉。",
+        "只为拿 root / 探测记录时，desiredKeys 传空数组 []，只要 recordID 和系统字段，不带 asset。",
+        "删任何启动清缓存这类治标代码前，先确认真正止血逻辑已经补上。"
+      ],
+      "agentKeywords": [
+        "CloudKit",
+        "desiredKeys nil",
+        "recordZoneChanges",
+        "CKAsset",
+        "externalStorage",
+        "Library/Caches/CloudKit",
+        "cloudd",
+        "Downloaded asset",
+        "idevicesyslog",
+        "mods=0",
+        "database.records(for:)",
+        "change token",
+        "desiredKeys []"
+      ],
+      "avoid": "不要在 zone 里有大 asset 时用 desiredKeys: nil 做列表、探测或全量比对；应用层跳过不等于系统缓存没下载。"
+    },
+    {
+      "id": "pit-07-ckshare-permissionfailure-tombstone-reset",
+      "sourceOrder": 7,
+      "category": "cloudkit",
+      "severity": "high",
+      "date": "2026-07-07",
+      "project": "Miboooo（家庭共享 / CKShare）",
+      "title": "CKShare 同步失败与删除照片复活",
+      "symptom": "双人共享相册里 participant 侧频繁提示共享已失效、需要重新邀请；同时在一台设备删除的照片过一阵又自己回来，尤其在接受邀请或重连之后。",
+      "rootCause": "两个 bug 叠加：permissionFailure（CKError code 10）在 owner 尚未把 participant 升级到 readWrite 的握手窗口里是瞬时态，却被误判为共享永久失效；接受邀请时 resetLocalSyncIdentity() 又清空了 pending-delete / deleted-day 删除墓碑。共享相册是只增不删模型，墓碑一清，云端从未真删的记录会全量 import，导致照片复活。",
+      "check": [
+        "按 owner / participant 角色分开排查；只有 participant 出问题时，优先检查共享 zone 权限与 accept / reset 流程。",
+        "如果现象是删了又回来，且同步模型是只增不删，检查删除墓碑是否在 reset / accept / 清缓存中被清空。",
+        "检查 permissionFailure 是否被放进了共享永久失效错误集合。"
+      ],
+      "fix": [
+        "把 permissionFailure 移出判定共享失效的错误集合，只保留 unknownItem、zoneNotFound 等更接近永久失效的信号。",
+        "resetLocalSyncIdentity() 只清同步身份相关状态，例如 owner 标记、known 集、change token、dirty、adopted LWW。",
+        "resetLocalSyncIdentity() 必须保留 pending-delete / deleted-day 删除墓碑；删除是用户意图，不是设备同步身份。",
+        "砍掉不能覆盖真实恢复场景的 participant 重置按钮，改为准确提示请相册主重新邀请。"
+      ],
+      "agentKeywords": [
+        "CKShare",
+        "permissionFailure",
+        "CKError code 10",
+        "participant",
+        "owner",
+        "readWrite",
+        "resetLocalSyncIdentity",
+        "pending-delete",
+        "deleted-day",
+        "tombstone",
+        "zoneNotFound",
+        "unknownItem",
+        "照片复活",
+        "共享已失效"
+      ],
+      "avoid": "不要把 CKError permissionFailure 一律当作共享永久失效；也不要在重置同步身份时清掉删除墓碑。"
+    },
+    {
+      "id": "pit-08-swiftdata-externalstorage-nsexception",
+      "sourceOrder": 8,
+      "category": "swiftdata",
+      "severity": "high",
+      "date": "2026-07-07",
+      "project": "Miboooo（SwiftData / 本地图片存储）",
+      "title": "SwiftData/Core Data 外部存储文件丢失导致 NSException abort",
+      "symptom": "App 在某些设备上闪退，崩溃栈固定出现 -[_PFExternalReferenceData _retrieveExternalData]、-[NSData _bridgingCopy:length:]、objc_exception_throw、abort(SIGABRT)。触发点是 UI 渲染读某张照片 thumbnailData；此前设备经历过存储撑满和 JetsamEvent。",
+      "rootCause": "SwiftData 图片字段使用 @Attribute(.externalStorage)，底层 Core Data 把大 blob 存成独立文件。当外部文件因磁盘满、JetsamEvent 或写入中断丢失时，主库引用变成悬空引用。读取属性时 Core Data 抛 Objective-C NSException 并 abort；这不是 Swift Error，do/catch、try? 和 NSSetUncaughtExceptionHandler 都拦不住。",
+      "check": [
+        "查看崩溃栈是否包含 _PFExternalReferenceData _retrieveExternalData、_bridgingCopy、objc_exception_throw。",
+        "确认是否点到某条特定数据必崩、其他数据正常；这通常是那条外部 blob 坏了。",
+        "用 idevicecrashreport 拉 .ips，解析崩溃线程定位具体读取属性，例如 PhotoAsset.thumbnailData.getter。",
+        "检查是否有计算属性或缓存 key 为了算签名反复读取整个 blob。"
+      ],
+      "fix": [
+        "新增 Objective-C 桥，用 @try/@catch 包住 blob 读取，并用 NS_SWIFT_NAME(catching(_:)) 暴露给 Swift。",
+        "只在 App target 配 bridging header；Widget 等 extension 不应引入。",
+        "给模型加 safeXxxData 访问器，通过 OC 桥读取 blob，文件缺失返回 nil 而不是 abort。",
+        "所有 UI / 渲染路径改走 safeXxxData，nil 时显示占位图，保持 App 可用。",
+        "内容身份、缓存 key 等高频计算不要读 blob，改用内容版本号和状态标志。"
+      ],
+      "agentKeywords": [
+        "SwiftData",
+        "Core Data",
+        "@Attribute(.externalStorage)",
+        "_PFExternalReferenceData",
+        "_retrieveExternalData",
+        "_bridgingCopy",
+        "objc_exception_throw",
+        "NSException",
+        "SIGABRT",
+        "thumbnailData",
+        "JetsamEvent",
+        "Objective-C @try/@catch",
+        "bridging header",
+        "safeXxxData",
+        "nonisolated(unsafe)"
+      ],
+      "avoid": "不要以为 Swift 的 try? 能拦住外部存储文件丢失引发的 NSException；所有 externalStorage blob 读取都要经过安全访问器。"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+interface:
+  display_name: "iOS Pitfalls Diagnose"
+  short_description: "Diagnose real iOS pitfalls from logs and symptoms"
+  brand_color: "#18181B"
+  default_prompt: "Use $ios-pitfalls-diagnose to match this iOS issue against known pitfalls before proposing fixes."
+
+policy:
+  allow_implicit_invocation: true
