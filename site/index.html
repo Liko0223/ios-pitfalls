@@ -5,6 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#ffffff">
   <title>iOS 踩坑指南</title>
+  <link rel="icon" href="./favicon.ico" sizes="any">
+  <link rel="icon" type="image/png" href="./assets/avatar.png">
+  <link rel="apple-touch-icon" href="./assets/avatar.png">
   <style>
     :root {
       color-scheme: light;
@@ -202,13 +205,6 @@
       color: var(--muted-foreground);
       font-size: 1rem;
       line-height: 1.7;
-    }
-
-    .hero-actions {
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-3);
-      align-items: center;
     }
 
     .install-command {
@@ -774,7 +770,7 @@
   <a class="skip-link" href="#main">跳到内容</a>
   <div class="deck-top" aria-label="页面信息">
     <div class="brand">
-      <img src="/Users/lilinke/Desktop/likosmeme%20/avagreen.png" alt="">
+      <img src="./assets/avatar.png" alt="">
       <span>iOS Pitfalls</span>
     </div>
     <div class="deck-topic">Technical notes for beginners and agents</div>
@@ -790,10 +786,6 @@
           <div class="stat"><b id="stat-count">0</b><span>条坑点</span></div>
           <div class="stat"><b id="stat-categories">0</b><span>个大类</span></div>
           <div class="stat"><b id="stat-high">0</b><span>高风险</span></div>
-        </div>
-        <div class="hero-actions">
-          <a class="btn primary" href="#main">开始排查</a>
-          <button class="btn" id="copy-all" type="button">复制 Agent 摘要</button>
         </div>
         <div class="install-command" aria-label="Skill 安装命令">
           <code id="install-command">npx skills add Liko0223/ios-pitfalls@ios-pitfalls-diagnose</code>
@@ -1197,7 +1189,6 @@
       resultCount: document.getElementById("result-count"),
       empty: document.getElementById("empty"),
       toast: document.getElementById("toast"),
-      copyAll: document.getElementById("copy-all"),
       copyInstall: document.getElementById("copy-install"),
       installCommand: document.getElementById("install-command")
     };
@@ -1387,26 +1378,6 @@
       elements.search.value = "";
       renderResults();
       elements.search.focus();
-    });
-
-    elements.copyAll.addEventListener("click", () => {
-      const compact = {
-        title: data.title,
-        version: data.version,
-        usage: "Search by category, title, symptom, rootCause, check, fix, agentKeywords.",
-        pitfalls: data.pitfalls.map((item) => ({
-          id: item.id,
-          category: item.category,
-          severity: item.severity,
-          title: item.title,
-          symptom: item.symptom,
-          rootCause: item.rootCause,
-          check: item.check,
-          fix: item.fix,
-          agentKeywords: item.agentKeywords
-        }))
-      };
-      copyText(JSON.stringify(compact, null, 2), "已复制 Agent 摘要");
     });
 
     elements.copyInstall.addEventListener("click", () => {
