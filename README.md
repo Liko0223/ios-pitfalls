@@ -11,9 +11,13 @@ The skill and site are generated/synchronized from that data:
 - `ios-pitfalls-diagnose/` - installable Agent skill
 - `site/` - static website with search, filters, and install command
 
+## Live site
+
+https://liko0223.github.io/ios-pitfalls/
+
 ## Install
 
-After this repository is published on GitHub, users can install the skill with:
+Users can install the skill with:
 
 ```bash
 npx skills add Liko0223/ios-pitfalls@ios-pitfalls-diagnose
