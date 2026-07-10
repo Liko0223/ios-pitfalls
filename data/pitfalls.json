@@ -1,18 +1,18 @@
 {
-  "version": "2026-07-07",
+  "version": "2026-07-10",
   "title": "iOS 开发踩坑记录",
   "purpose": "从脱敏后的真实 iOS / Swift 踩坑记录抽取结构化诊断知识，供 Agent 按症状、日志关键词和排查路径快速匹配。",
   "source": {
     "type": "sanitized-public-index",
-    "last_updated": "2026-07-07"
+    "last_updated": "2026-07-10"
   },
   "categories": [
     {
       "id": "cloudkit",
       "name": "CloudKit / CKShare",
-      "summary": "CloudKit schema、CKAsset 拉取、共享权限与同步状态。",
+      "summary": "CloudKit schema、CKAsset 拉取、共享身份与权限、同步并发及系统分享 UI。",
       "nameEn": "CloudKit / CKShare",
-      "summaryEn": "CloudKit schema, CKAsset fetching, sharing permissions, and sync state."
+      "summaryEn": "CloudKit schema, CKAsset fetching, share identity and permissions, sync concurrency, and system sharing UI."
     },
     {
       "id": "swiftui",
@@ -31,9 +31,16 @@
     {
       "id": "swiftdata",
       "name": "SwiftData / Core Data",
-      "summary": "外部存储、blob 文件丢失、NSException 与安全读取。",
+      "summary": "外部存储、fetch 完整性、blob 损坏、NSException 与云端写入安全。",
       "nameEn": "SwiftData / Core Data",
-      "summaryEn": "External storage, missing blob files, NSException crashes, and safe reads."
+      "summaryEn": "External storage, fetch integrity, damaged blobs, NSException crashes, and safe cloud writes."
+    },
+    {
+      "id": "sync",
+      "name": "同步一致性 / 并发",
+      "summary": "同步快照、删除推断、async 重入与云端写入安全。",
+      "nameEn": "Sync Consistency / Concurrency",
+      "summaryEn": "Sync snapshots, deletion inference, async reentrancy, and safe cloud writes."
     }
   ],
   "pitfalls": [
@@ -45,7 +52,7 @@
       "date": "2026-06-13",
       "title": "CloudKit CKError 15：生产环境 schema 没部署",
       "symptom": "TestFlight / App Store 正式环境 iCloud 同步报 CKErrorDomain 错误 15；本地 Xcode Debug 和早期 TF 包正常，一上正式自己和用户全员同步失败。",
-      "rootCause": "CKError 15 是 serverRejectedRequest。真正原因是 CloudKit Production 环境没有对应 record type / 字段；Development 会自动推断 schema，但 Production 必须手动 Deploy。",
+      "rootCause": "CKError 15 通常对应 serverRejectedRequest。一个常见的真实原因是 CloudKit Production 环境没有对应 record type / 字段；Development 会自动推断 schema，但 Production 必须手动 Deploy。",
       "check": [
         "确认错误是否是 CKErrorDomain 15 / serverRejectedRequest，而不是普通网络失败。",
         "登录 CloudKit Console，切到 Production 环境，检查目标 record type 是否存在。",
@@ -493,7 +500,311 @@
         "Route all UI and rendering paths through safeXxxData. Show a placeholder when nil is returned so the app remains usable.",
         "Do not read blobs in high-frequency identity or cache-key calculations. Use content version and state flags instead."
       ],
-      "avoidEn": "Do not assume Swift try? can catch NSException crashes caused by missing external storage files. Every externalStorage blob read on a user-facing path needs a safe accessor."
+      "avoidEn": "Do not assume Swift try? can catch NSException crashes caused by missing external storage files. Every externalStorage blob read needs a safe accessor."
+    },
+    {
+      "id": "pit-09-swiftdata-fetch-failure-destructive-delete",
+      "sourceOrder": 9,
+      "category": "sync",
+      "severity": "high",
+      "date": "2026-07-10",
+      "title": "SwiftData fetch 失败被吞成空集合，触发破坏性删除",
+      "symptom": "同步通过“上次成功基线减当前本地 ID”推断删除；一次 SwiftData fetch 失败后，代码却把结果当成空集合，随后生成接近全量的删除墓碑或云端删除。用户可能没有执行任何清空操作，也看不到明显报错。",
+      "rootCause": "(try? modelContext.fetch(...)) ?? [] 把“读取成功且确实为空”和“读取失败、当前状态未知”合并成同一个值。后续用这个伪空集合参与缺席推断，就会把整份历史基线误判为用户删除。危险点不是 try? 本身，而是让降级值进入不可逆的 destructive pipeline。",
+      "check": [
+        "搜索同步、迁移或批量清理代码里是否存在 (try? fetch(...)) ?? []，并确认结果是否参与删除、覆盖、墓碑或基线计算。",
+        "比较异常删除数量与上次成功同步基线；若两者接近，优先怀疑本地枚举失败被伪装成空集合。",
+        "确认用户没有执行明确的清空操作，但云端仍收到大量 tombstone / delete。",
+        "检查读取错误是否因为 try? 被吞掉，导致日志里只有删除结果而没有 fetch failure。"
+      ],
+      "fix": [
+        "所有参与同步裁决的 SwiftData fetch 改为显式 try；任意一项失败就中止整轮同步并保留远端状态。",
+        "只有所有必需读取都成功后，才生成完整、可信的本地同步快照。",
+        "删除推断、墓碑写入和基线更新只能基于成功快照；失败时全部跳过。",
+        "用户明确清空数据必须走独立显式路径，并先按设计处理同步基线，不能靠一次空 fetch 猜意图。",
+        "记录 fetch 错误和本轮 aborted，方便区分“没有数据”和“无法读取数据”。"
+      ],
+      "agentKeywords": [
+        "SwiftData fetch",
+        "modelContext.fetch",
+        "try? fetch",
+        "?? []",
+        "empty collection fallback",
+        "baseline subtracting current IDs",
+        "tombstone",
+        "destructive sync",
+        "fail closed",
+        "local sync snapshot",
+        "swallowed fetch error",
+        "全量删除墓碑",
+        "误判用户删光数据",
+        "cloud records deleted",
+        "fetch failure treated as empty",
+        "sync data loss"
+      ],
+      "avoid": "不要把“读取失败”降级成空集合后继续做删除推断；破坏性流程必须先证明本地枚举完整可信。",
+      "titleEn": "A swallowed SwiftData fetch failure can trigger destructive deletes",
+      "symptomEn": "Sync infers deletions by subtracting current local IDs from the last successful baseline. After one SwiftData fetch fails, the code treats the result as an empty collection and creates nearly full-set tombstones or cloud deletions, even though the user never cleared their data and may see no obvious error.",
+      "rootCauseEn": "The pattern (try? modelContext.fetch(...)) ?? [] collapses two different states: a successful read that is genuinely empty, and a failed read where local state is unknown. Feeding that fake empty set into absence-based deletion logic makes the entire historical baseline look user-deleted. The dangerous part is allowing a fallback value into an irreversible pipeline.",
+      "checkEn": [
+        "Search sync, migration, or cleanup code for (try? fetch(...)) ?? [] and check whether the result drives deletes, overwrites, tombstones, or baseline updates.",
+        "Compare the unexpected delete count with the previous successful baseline. A near match strongly suggests a failed enumeration was treated as empty.",
+        "Confirm the user did not explicitly clear data while the cloud still received a large batch of tombstones or deletes.",
+        "Check whether try? swallowed the read error, leaving deletion logs but no fetch-failure evidence."
+      ],
+      "fixEn": [
+        "Use explicit throwing fetches for every read that participates in sync decisions. Abort the whole pass if any required read fails.",
+        "Create a complete, trusted local sync snapshot only after every required read succeeds.",
+        "Allow deletion inference, tombstone writes, and baseline updates only from a successful snapshot; skip all of them on failure.",
+        "Route an intentional user clear through a separate explicit flow that handles the sync baseline by design, rather than guessing from one empty fetch.",
+        "Log the fetch failure and aborted pass so an empty dataset can be distinguished from unreadable data."
+      ],
+      "avoidEn": "Do not turn a read failure into an empty collection and continue deletion inference. A destructive pipeline must first prove that local enumeration is complete and trustworthy."
+    },
+    {
+      "id": "pit-10-mainactor-await-sync-reentrancy",
+      "sourceOrder": 10,
+      "category": "sync",
+      "severity": "high",
+      "date": "2026-07-10",
+      "title": "@MainActor 不保证跨 await 的同步事务原子性",
+      "symptom": "两个同步入口都在 @MainActor 上操作同一份本地存储，却仍出现新改动被旧同步覆盖、漏传，或被错误写进“已同步”基线。同步进行中再次触发时，简单 isSyncing 守卫还可能直接丢掉真正需要的补跑。",
+      "rootCause": "Actor 隔离只保证某一时刻执行一段隔离代码；遇到 await 会发生 reentrancy，其他任务或用户编辑可以进入。旧任务恢复后继续用 await 前的快照做裁决，并在上传结束时把当下重新读取的新状态写入基线，就会把从未上传的变化冒充成已同步状态。",
+      "check": [
+        "确认多个同步入口是否操作同一 ModelContext / store，且流程内部跨越 CloudKit 或网络 await。",
+        "搜索 guard !isSyncing else { return } 之类逻辑，判断重叠触发是否被静默丢弃。",
+        "检查上传结束后是否重新 fetch 当前本地状态，并直接把它保存成同步基线。",
+        "在同步转圈期间编辑或删除数据，观察改动是否本地成功但其他设备收不到，或下轮又被旧云端覆盖。"
+      ],
+      "fix": [
+        "给所有读写同一 store 的同步引擎加共享、非重入的顶层 coordinator，并让全部入口经过它。",
+        "coordinator 按队列执行，前一任务失败也必须释放下一位；取消的 waiter 不能偷偷进入临界区。",
+        "每轮开始冻结完整快照，在每个关键 await 后验证快照前提是否仍成立；不一致就放弃旧裁决并重跑。",
+        "上传前冻结实际 payload 对应的 uploaded snapshot；成功后只把这份快照写入基线。",
+        "用单调递增 generation 合并重叠请求：当前 pass 完成后至少再跑一轮，不并发也不丢事件。",
+        "快照同时包含内容签名和结构字段，避免关系或归属变化因签名未变而漏传。"
+      ],
+      "agentKeywords": [
+        "@MainActor",
+        "actor reentrancy",
+        "await",
+        "sync transaction",
+        "ModelContext",
+        "isSyncing",
+        "stale snapshot",
+        "uploadedSnapshot",
+        "sync generation",
+        "coalesced sync",
+        "non-reentrant coordinator",
+        "CloudKit await",
+        "过期快照",
+        "同步请求被丢弃",
+        "new changes marked synced",
+        "lost sync update"
+      ],
+      "avoid": "不要把 @MainActor 当作跨 await 的事务锁，也不要用“同步中就 return”丢掉重叠触发；基线只能描述本轮真正上传的 payload。",
+      "titleEn": "@MainActor does not make an async sync transaction atomic",
+      "symptomEn": "Two sync entry points both run on @MainActor and touch the same local store, yet new edits are overwritten by an older pass, never uploaded, or incorrectly recorded as already synced. A simple isSyncing guard may also discard a follow-up request that was actually required.",
+      "rootCauseEn": "Actor isolation allows only one isolated segment to execute at a time, but await introduces reentrancy so another task or user edit can enter. When the old task resumes, it can decide from a pre-await snapshot, then re-fetch current local state after upload and write changes it never uploaded into the successful baseline.",
+      "checkEn": [
+        "Confirm whether multiple sync entry points use the same ModelContext or store and cross CloudKit or network await points.",
+        "Search for guards such as guard !isSyncing else { return } and determine whether overlapping triggers are silently dropped.",
+        "Check whether the code re-fetches current local state after upload and stores that state directly as the sync baseline.",
+        "Edit or delete data while sync is in progress and observe whether the local change succeeds but never reaches another device, or is later overwritten by older cloud state."
+      ],
+      "fixEn": [
+        "Put every sync engine that reads or writes the same store behind one shared, non-reentrant top-level coordinator.",
+        "Queue passes correctly: an error must release the next waiter, and a cancelled waiter must not enter the critical section later.",
+        "Freeze a complete snapshot at pass start and revalidate its assumptions after every important await. Restart when the snapshot is stale.",
+        "Freeze the uploaded snapshot that exactly matches the outgoing payload and write only that snapshot into the baseline after success.",
+        "Use a monotonic generation to coalesce overlapping requests into at least one follow-up pass instead of running concurrently or dropping events.",
+        "Include structural fields as well as content signatures in the snapshot so relationship or ownership changes cannot be missed."
+      ],
+      "avoidEn": "Do not treat @MainActor as a transaction lock across await, and do not drop overlapping triggers with an early return. The baseline must describe the payload that was actually uploaded."
+    },
+    {
+      "id": "pit-11-externalstorage-nil-cloud-asset-loss",
+      "sourceOrder": 11,
+      "category": "sync",
+      "severity": "high",
+      "date": "2026-07-10",
+      "title": "损坏 blob 被降级为 nil，反向抹掉云端资产",
+      "symptom": "externalStorage 已用安全读取避免崩溃，但同步上传仍把读取失败返回的 nil 当成合法可选值，构造缺少 CKAsset 的记录并覆盖云端。结果是一台设备的本地损坏扩散到云端和其他健康设备。",
+      "rootCause": "单个 optional nil 无法表达来源：它既可能是业务上本来没有该资产，也可能是外部文件引用损坏后被异常边界降级。防崩溃的读取容错只说明进程可以继续运行，不代表这份本地 payload 完整可信、适合写回云端。",
+      "check": [
+        "确认 UI 已改走 safe blob accessor，但上传代码是否仍逐个读取 raw blob 或互相独立的 safe optional。",
+        "检查是否只有经历磁盘满、写入中断或外部文件丢失的设备同步后，其他设备的资产也随之消失。",
+        "如果 CloudKit 写入成功且没有 error，但记录字段变少，优先检查 nil 是否来自读取失败。",
+        "检查上传接口是否接收一组 optional，而不是一次性验证完整性的 coherent snapshot。"
+      ],
+      "fix": [
+        "在同一个 Objective-C @try/@catch 边界内读取一条记录上传所需的全部 blob。",
+        "只有所有读取动作成功且必需字段存在时，才创建 coherent upload snapshot；此时可选字段的 nil 才代表真实业务值。",
+        "snapshot 创建失败就中止该记录或整轮破坏性同步，保留云端健康副本，绝不提交半残 payload。",
+        "UI、导出、Widget、修复服务、签名计算和所有云端上传路径统一使用安全访问器或 coherent snapshot。",
+        "分别测试异常读取能被拦截，以及合法 optional nil 能被保留，防止把两种语义再次混在一起。"
+      ],
+      "agentKeywords": [
+        "externalStorage",
+        "safe blob accessor",
+        "optional nil",
+        "CKAsset missing",
+        "coherent upload snapshot",
+        "Objective-C @try/@catch",
+        "damaged local blob",
+        "partial cloud payload",
+        "cloud asset overwritten",
+        "local corruption propagation",
+        "读取失败当合法 nil",
+        "云端资产消失",
+        "SwiftData blob sync",
+        "preserve remote copy",
+        "fail closed upload"
+      ],
+      "avoid": "不要把安全读取返回的 nil 直接送进云端写入；读取不崩只解决可用性，写入前还必须证明整份 payload 一致且完整。",
+      "titleEn": "Treating a damaged blob as a valid nil can erase cloud assets",
+      "symptomEn": "Safe externalStorage reads prevent a crash, but sync treats a nil returned after a read failure as a legitimate optional value. It then uploads a record without the CKAsset and overwrites the healthy cloud copy, propagating one device's local corruption to other devices.",
+      "rootCauseEn": "An isolated optional nil does not carry provenance: the asset may genuinely be absent, or the external file may be damaged and downgraded by an exception boundary. Crash-tolerant reading only proves the process can continue; it does not prove the local payload is complete, coherent, or safe to write back to the cloud.",
+      "checkEn": [
+        "Confirm the UI uses safe blob accessors while upload code still reads raw blobs or separate safe optionals one by one.",
+        "Check whether assets disappear on other devices only after a device with full-disk, interrupted-write, or missing-external-file history syncs.",
+        "If the CloudKit save succeeds without an error but fields vanish, inspect whether nil came from a failed read.",
+        "Check whether the upload API accepts a loose group of optionals instead of one coherent snapshot whose completeness was validated."
+      ],
+      "fixEn": [
+        "Read every blob required for one upload inside the same Objective-C @try/@catch boundary.",
+        "Create a coherent upload snapshot only when every read succeeds and all required fields exist; only then can optional nil mean a real business value.",
+        "If snapshot creation fails, abort that record or the destructive pass and preserve the healthy cloud copy instead of sending a partial payload.",
+        "Route UI, export, widgets, repair services, signature logic, and every cloud upload path through safe accessors or coherent snapshots.",
+        "Test exception-backed read failure separately from a legitimate optional nil so the two meanings cannot collapse again."
+      ],
+      "avoidEn": "Do not feed nil from a safe read directly into a cloud write. Avoiding a crash solves availability; upload safety still requires a coherent and complete payload."
+    },
+    {
+      "id": "pit-12-ckshare-album-identity-root-ambiguity",
+      "sourceOrder": 12,
+      "category": "cloudkit",
+      "severity": "high",
+      "date": "2026-07-10",
+      "title": "CKShare 只记 root 名会造成身份歧义与串错共享数据",
+      "symptom": "用户只完成过一次明确邀请，设备却提示检测到多个共享数据集；接收方可能只看到 owner 选项，恢复后仍无法正确绑定。private 与 shared database 中往往堆积了用户取消、重试或旧版本留下的多个历史 root。",
+      "rootCause": "分享流程在系统邀请 UI 完成前就保存 root / CKShare，取消后又没有回滚；本地只记 rootRecordName，缺少 container、账号、角色、zone owner 和 share ID，无法唯一标识数据集。Discovery 还可能扫到多个 private root 就提前返回，根本没检查 shared database，同时角色边界过松让 participant 走进 owner-only 路径。",
+      "check": [
+        "先读取本地完整共享身份，确认是否只有旧 root marker，而没有 container、账号、角色、zone 与 share 信息。",
+        "在 private database 枚举所有候选 root，并读取对应 CKShare 与参与者状态。",
+        "在 shared database 按 zone owner 枚举可见 root，不能因为 private 侧有歧义就提前停止。",
+        "只有两端最终指向同一 root 与同一 share，且角色分别为 owner / participant，才算恢复成功。",
+        "不要从历史 root 数量直接推断用户真正完成过多少次邀请；创建时机本身就会留下残留。"
+      ],
+      "fix": [
+        "持久化精确身份：containerIdentifier、accountRecordName、role、zoneName、zoneOwnerName、rootRecordName、shareRecordName。",
+        "正常同步只接受精确身份；账号变化、share 不匹配或记录不存在时 fail closed，绝不猜一个 root 自动接管。",
+        "迁移旧版本时完整扫描 private 与 shared database，再统一决策，不能在其中一边提前返回。",
+        "只有唯一 owner 或唯一 participant 才能自动迁移；多候选或跨角色并存必须暂停并要求显式恢复。",
+        "UI 与服务层都按角色建立硬边界：participant 不能进入 owner-only 的创建或邀请流程。",
+        "多候选按真实数据完整度、更新时间和稳定 ID 排序；两端应对同一组数据选出相同 canonical root。",
+        "清理历史 root 前先审计并合并独有内容与删除墓碑，验证两端一致后再删除。"
+      ],
+      "agentKeywords": [
+        "CKShare",
+        "rootRecordName",
+        "shareRecordName",
+        "zoneOwnerName",
+        "accountRecordName",
+        "album identity",
+        "multiple roots",
+        "private database",
+        "shared database",
+        "owner participant role",
+        "canonical root",
+        "historical CKShare",
+        "共享相册歧义",
+        "检测到多个家庭相册",
+        "participant shown as owner",
+        "wrong shared zone",
+        "fail closed discovery",
+        "tombstone merge"
+      ],
+      "avoid": "不要只凭 rootRecordName 猜共享身份，也不要简单“保留最新 root、删除其他”；先确定两端 canonical share 并合并独有内容与删除意图。",
+      "titleEn": "A CKShare root name alone cannot safely identify a shared dataset",
+      "symptomEn": "A user completes one clear invitation, yet devices report multiple shared datasets; the recipient may see only owner choices and recovery still binds incorrectly. Private and shared databases often contain historical roots left by cancellation, retries, or older app versions.",
+      "rootCauseEn": "The sharing flow saves a root and CKShare before the system invitation UI completes and does not roll them back on cancellation. Local state stores only rootRecordName, omitting the container, account, role, zone owner, and share ID needed for unique identity. Discovery may also stop after ambiguous private roots without scanning the shared database, while weak role boundaries let participants enter owner-only paths.",
+      "checkEn": [
+        "Read the complete local sharing identity first and determine whether the app stores only a legacy root marker without container, account, role, zone, and share fields.",
+        "Enumerate every candidate root in the private database and inspect its CKShare and participant state.",
+        "Enumerate visible roots in the shared database by zone owner; do not stop merely because the private side is ambiguous.",
+        "Treat recovery as successful only when both devices point to the same root and share with the correct owner and participant roles.",
+        "Do not infer how many invitations the user completed from the number of historical roots; object-creation timing can create leftovers by itself."
+      ],
+      "fixEn": [
+        "Persist a precise identity containing containerIdentifier, accountRecordName, role, zoneName, zoneOwnerName, rootRecordName, and shareRecordName.",
+        "Accept only that precise identity during normal sync. Fail closed on account changes, share mismatch, or missing records instead of guessing a root.",
+        "During legacy migration, scan both private and shared databases completely before making one combined decision.",
+        "Auto-migrate only a unique owner or unique participant candidate. Pause and require explicit recovery when candidates or roles are ambiguous.",
+        "Enforce hard role boundaries in both UI and services so a participant cannot enter owner-only creation or invitation flows.",
+        "Rank candidates by real data completeness, update time, and stable ID so both sides choose the same canonical root from the same data.",
+        "Before deleting historical roots, audit and merge unique content and tombstones, then verify both devices against the canonical share."
+      ],
+      "avoidEn": "Do not guess sharing identity from rootRecordName alone, and do not simply keep the newest root and delete the rest. Establish the canonical share on both sides and merge unique content and deletion intent first."
+    },
+    {
+      "id": "pit-13-uicloudsharingcontroller-done-loading",
+      "sourceOrder": 13,
+      "category": "cloudkit",
+      "severity": "medium",
+      "date": "2026-07-10",
+      "title": "UICloudSharingController 点“完成”后 SwiftUI 永久 loading",
+      "symptom": "Owner 或 participant 打开系统 Cloud sharing 面板后，participant 入口可能几乎没有独有信息；更严重的是用户不做修改、只点“完成”返回 App，SwiftUI 的 working 状态一直不复位，相关操作全部 disabled，直到重启。",
+      "rootCause": "UICloudSharingController 对 owner 与 participant 提供的能力不同，participant 面板常与 App 自有退出入口重复。生命周期上，控制器通过自己的 Done 按钮程序化 dismiss 时不会调用 presentationControllerDidDismiss；如果代码只监听 save、stop sharing、failure 和 interactive dismissal，就漏掉无修改的 Done 路径，completion 永远不执行。",
+      "check": [
+        "确认系统面板已经消失，但 SwiftUI isWorking / loading 状态仍为 true。",
+        "分别测试下拉交互关闭和系统导航栏 Done；若前者正常、后者稳定卡住，优先怀疑 programmatic dismissal。",
+        "检查 UIAdaptivePresentationControllerDelegate 已设置却仍无回调，避免被 presentationControllerDidDismiss 的名字误导。",
+        "列出 UICloudSharingControllerDelegate 的 save、stop、failure 回调，确认是否缺少通用 cancel / done 收尾。"
+      ],
+      "fix": [
+        "按角色精简入口：Owner 保留成员管理；participant 若没有独有操作，可只保留退出共享和立即同步。",
+        "使用能感知最终 disappearance 的 UICloudSharingController 子类，为无修改的 Done dismiss 补发 cancelled outcome。",
+        "所有 save、stop、interactive dismiss、Done dismiss 路径统一进入幂等 completeIfNeeded，最多收尾一次。",
+        "completeIfNeeded 先取走 completion 并清理引用，再回调 SwiftUI，避免重入或重复完成。",
+        "cancelled 只负责解除 loading 并刷新共享状态，不伪装成保存成功，也不额外修改共享关系。"
+      ],
+      "agentKeywords": [
+        "UICloudSharingController",
+        "presentationControllerDidDismiss",
+        "UIAdaptivePresentationControllerDelegate",
+        "UICloudSharingControllerDelegate",
+        "programmatic dismiss",
+        "Done button",
+        "SwiftUI loading stuck",
+        "isWorking true",
+        "completeIfNeeded",
+        "dismissal-aware subclass",
+        "participant sharing UI",
+        "owner member management",
+        "点完成一直 loading",
+        "系统分享面板关闭",
+        "interactive dismissal works",
+        "missing completion callback"
+      ],
+      "avoid": "不要假设 presentationControllerDidDismiss 覆盖所有关闭方式；打开系统控制器前锁住 UI 时，必须为每条终止路径提供幂等收尾。",
+      "titleEn": "UICloudSharingController Done dismissal can leave SwiftUI loading forever",
+      "symptomEn": "After an owner or participant opens the system Cloud sharing controller, the participant view may offer little unique value. More critically, if the user makes no changes and taps Done, SwiftUI can remain permanently busy with every related action disabled until relaunch.",
+      "rootCauseEn": "UICloudSharingController exposes different capabilities by role, and the participant panel can duplicate an app's own leave-sharing flow. For lifecycle handling, a dismissal initiated by the controller's own Done button does not call presentationControllerDidDismiss. Code that listens only for save, stop-sharing, failure, and interactive dismissal misses the unchanged Done path, so its completion never runs.",
+      "checkEn": [
+        "Confirm the system controller has disappeared while the SwiftUI isWorking or loading state remains true.",
+        "Test swipe-to-dismiss and the navigation-bar Done button separately. If the former works and the latter consistently sticks, suspect programmatic dismissal.",
+        "Check whether UIAdaptivePresentationControllerDelegate is installed but still receives no callback; do not assume presentationControllerDidDismiss covers every dismissal.",
+        "List the save, stop, and failure callbacks from UICloudSharingControllerDelegate and confirm whether a general cancel or Done completion path is missing."
+      ],
+      "fixEn": [
+        "Make entry points role-specific: keep member management for owners, and omit the participant panel when leave-sharing and sync actions already cover its useful behavior.",
+        "Use a UICloudSharingController subclass that detects final disappearance and emits a cancelled outcome for an unchanged Done dismissal.",
+        "Route save, stop, interactive dismissal, and Done dismissal through one idempotent completeIfNeeded function that can finish only once.",
+        "Inside completeIfNeeded, take and clear the completion and controller references before calling back into SwiftUI to avoid reentrancy or duplicate completion.",
+        "Treat cancelled as a request to clear loading and refresh sharing state, not as a successful save or a reason to mutate the share."
+      ],
+      "avoidEn": "Do not assume presentationControllerDidDismiss covers every way a system controller can close. If the UI is locked before presentation, every termination path needs an idempotent completion."
     }
   ],
   "titleEn": "iOS Development Pitfalls",
